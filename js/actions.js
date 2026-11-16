@@ -5,7 +5,9 @@ import {
 } from './constants.js';
 import { $, original, setStatus } from './dom.js';
 import { newObjectId, objects, selectedObject, state } from './state.js';
-import { isBadge, isEffectType, moveObject } from './geometry.js';
+import {
+  isBadge, isEffectType, isPaint, moveObject,
+} from './geometry.js';
 import { nextBadgeNumber, syncWindowStyleOption } from './shapes.js';
 import { drawEditor } from './render.js';
 import { updateStageView } from './stage.js';
@@ -15,6 +17,7 @@ import { commitChange, pushHistory } from './history.js';
 
 // 操作の案内. 図形の道具では, 番号とぼかし・モザイクの置き方が違うので, 種類に合わせる.
 function toolHint() {
+  if (state.tool === 'pen' && selectedObject() && isPaint(selectedObject())) return TOOL_HINTS.paint;
   if (state.tool !== 'shape') return TOOL_HINTS[state.tool];
   if (state.shapeType === 'badge') return TOOL_HINTS.badge;
   if (isEffectType(state.shapeType)) return TOOL_HINTS.effect;
@@ -41,7 +44,9 @@ export function setTool(tool, keepSelection = false) {
   state.view = 'edit';
   state.pointerAction = null;
   state.currentShape = null;
-  if (tool !== 'select' && !keepSelection) state.selectedIndex = -1;
+  // ペンに持ち替えたときは, 選んでいるペイントレイヤーを描き先として選んだままにする.
+  const keepPaint = tool === 'pen' && selectedObject() && isPaint(selectedObject());
+  if (tool !== 'select' && !keepSelection && !keepPaint) state.selectedIndex = -1;
   updateToolUI();
   updateStageView();
   updateSelectionInspector();
@@ -115,7 +120,13 @@ export function reorderSelected(kind) {
 // レイヤー一覧などから, オブジェクトを選ぶ. 選択以外の道具を持っていれば, 選択の道具へ持ち替える.
 export function selectObject(index) {
   state.selectedIndex = index >= 0 && index < objects.length ? index : -1;
-  if (state.tool !== 'select' || state.view !== 'edit') {
+  // ペンの道具のままペイントレイヤーを選んだときは, 描き先を切り替えるだけにする(道具は持ち替えない).
+  const paintTarget = state.tool === 'pen' && state.view === 'edit' && selectedObject() && isPaint(selectedObject());
+  if (paintTarget) {
+    updateSelectionInspector();
+    updateToolUI();
+    drawEditor();
+  } else if (state.tool !== 'select' || state.view !== 'edit') {
     setTool('select', true);
   } else {
     updateSelectionInspector();
@@ -197,6 +208,34 @@ export function addPaper() {
   });
   state.selectedIndex = 0;
   if (state.tool !== 'select') setTool('select', true);
+  updateSelectionInspector();
+  showTab('props');
+  commitChange();
+}
+
+// ペイントレイヤーを, いちばん上に足して選び, ペンの道具に持ち替える.
+// ペイントレイヤーを選んでいる間は, ペン・蛍光ペン・消しゴムの線がそのレイヤーの中に描かれる.
+export function addPaint() {
+  if (!state.sourceImage || objects.length >= MAX_OBJECTS) return;
+  objects.push({
+    id: newObjectId(),
+    type: 'paint',
+    style: 'fill',
+    fill: PAPER_DEFAULT,
+    stroke: PAPER_DEFAULT,
+    lineWidth: 0,
+    opacity: 1,
+    rotation: 0,
+    hidden: false,
+    locked: false,
+    x1: 0,
+    y1: 0,
+    x2: 1,
+    y2: 1,
+    strokes: [],
+  });
+  state.selectedIndex = objects.length - 1;
+  setTool('pen');
   updateSelectionInspector();
   showTab('props');
   commitChange();

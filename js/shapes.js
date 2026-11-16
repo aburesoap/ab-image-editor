@@ -7,6 +7,7 @@ import {
   isBadge, isEffectType, isLineType, isPenType, mapPointToCanvas, refWidth,
 } from './geometry.js';
 import { drawPen } from './pen.js';
+import { drawPaint } from './paint.js';
 import { fontStack } from './fonts.js';
 
 // 次に置く番号. 置いてある番号の最大値の次にする(1つも無ければ1).
@@ -319,6 +320,12 @@ function drawBadge(ctx, shape, place) {
 }
 
 export function drawShape(ctx, width, height, shape, cropRect) {
+  if (shape.type === 'paint') {
+    // 描いている途中の線も, そのレイヤーの中に重ねて見せる(消しゴムも, 描いている間から消えて見える).
+    const extra = state.currentStroke && state.currentStroke.targetId === shape.id ? state.currentStroke : null;
+    drawPaint(ctx, width, height, shape, cropRect, extra);
+    return;
+  }
   if (shape.type === 'paper') {
     // 白地は, 切り抜き範囲によらず描画先の全体を覆う.
     ctx.save();
@@ -461,6 +468,7 @@ export function objectTypeLabel(type) {
     pen: 'ペン',
     marker: '蛍光ペン',
     paper: '白地',
+    paint: 'ペイント',
     text: 'テキスト',
   })[type] || '図形';
 }

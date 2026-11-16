@@ -31,9 +31,9 @@ export const state = {
   },
   lastBadge: { fill: BADGE_DEFAULTS.fill, stroke: BADGE_DEFAULTS.stroke },
   lastEffect: { strengthPx: EFFECT_DEFAULTS.strengthPx },
-  // ペンの種類(pen / marker)と, 種類ごとに直前に使った色・太さ・不透明度.
+  // ペンの種類(pen / marker / eraser)と, 種類ごとに直前に使った色・太さ・不透明度.
   penType: 'pen',
-  lastPen: { pen: { ...PEN_DEFAULTS.pen }, marker: { ...PEN_DEFAULTS.marker } },
+  lastPen: { pen: { ...PEN_DEFAULTS.pen }, marker: { ...PEN_DEFAULTS.marker }, eraser: { ...PEN_DEFAULTS.eraser } },
   // 開いている元画像のファイル(編集データへ埋め込むときに使う).
   sourceBlob: null,
   selectedIndex: -1,
@@ -53,6 +53,8 @@ export const state = {
   zoom: { fit: true, scale: 1, panX: 0, panY: 0 },
   pointerAction: null,
   currentShape: null,
+  // ペイントレイヤーへ描いている途中の線. targetId は描き先のレイヤーの id.
+  currentStroke: null,
   historyTimer: 0,
   drawFrame: 0,
   worker: null,

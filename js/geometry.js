@@ -17,6 +17,10 @@ export const isBadge = (obj) => obj.type === 'badge';
 export const isPenType = (type) => type === 'pen' || type === 'marker';
 // 白地. 画像全体を1色で覆う. 作業領域では選べず, 動かせない(レイヤー一覧から選ぶ).
 export const isPaper = (obj) => obj.type === 'paper';
+// ペイントレイヤー. 画像全体に広がる透明なレイヤーで, 上に描いた線(消しゴムを含む)をまとめて持つ.
+export const isPaint = (obj) => obj.type === 'paint';
+// 画像全体に固定されたレイヤー(白地, ペイント). 作業領域では選ばず, 動かさず, ハンドルも出さない.
+export const isFullLayer = (obj) => isPaper(obj) || isPaint(obj);
 
 export function getDimensions(width, height, maxSide) {
   const scale = Math.min(1, maxSide / Math.max(width, height));
@@ -107,7 +111,7 @@ export function objectCenter(obj) {
 }
 
 export function moveObject(obj, dx, dy) {
-  if (isPaper(obj)) return;
+  if (isFullLayer(obj)) return;
   if (isText(obj)) {
     obj.x += dx;
     obj.y += dy;

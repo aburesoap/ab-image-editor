@@ -21,6 +21,18 @@ function turnObject(obj, dir, W, H) {
     return;
   }
   obj.lineWidth = Number(obj.lineWidth || 0) * widthRatio;
+  if (obj.type === 'paint') {
+    // ペイントの線は, 画像上の位置で持っているので, 点を1つずつ回す. 列は作り直す(履歴に残した前の列を書き換えないため).
+    obj.strokes = (obj.strokes || []).map((stroke) => {
+      const points = [];
+      for (let i = 0; i + 1 < stroke.points.length; i += 2) {
+        const p = turnPoint(stroke.points[i], stroke.points[i + 1], dir);
+        points.push(p.x, p.y);
+      }
+      return { ...stroke, width: Number(stroke.width || 0) * widthRatio, points };
+    });
+    return;
+  }
   if (isOrientedType(obj.type)) {
     // 三角形・星・吹き出し・太矢印は上下や左右が対称でないため, 枠の縦横は保ったまま, 中心を移して角度を90°足す.
     const center = turnPoint((obj.x1 + obj.x2) / 2, (obj.y1 + obj.y2) / 2, dir);

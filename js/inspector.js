@@ -16,7 +16,7 @@ import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
 import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
 import {
-  isBadge, isEffectType, isLineType, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
+  isBadge, isEffectType, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
@@ -24,7 +24,7 @@ import { requestDraw } from './render.js';
 import { invalidateResult } from './convert.js';
 import { renderLayerList } from './layers.js';
 import { syncColorPicker } from './colorpicker.js';
-import { syncPenOptions } from './pen-options.js';
+import { syncPenOptions, syncPenTarget } from './pen-options.js';
 
 const fieldValue = (id) => {
   const el = $(id);
@@ -65,6 +65,7 @@ export function updateSelectionInspector() {
   $('propEmpty').hidden = Boolean(obj);
   setDisabled(inspectorControls, !obj);
   renderLayerList();
+  syncPenTarget();
   if (!obj) {
     syncColorPicker();
     return;
@@ -75,7 +76,10 @@ export function updateSelectionInspector() {
   const badge = isBadge(obj);
   $('textFields').hidden = !textObject;
   // ぼかし・モザイクは色を持たず, 強さだけを持つ. 番号は, 丸の色・数字の色・番号を持つ.
-  $('shapeFields').hidden = textObject || effect;
+  // ペイントレイヤーは, 中の線をまとめて持つだけで, 色や大きさの欄は無い(不透明度と重ね順だけ).
+  const paint = isPaint(obj);
+  $('paintFields').hidden = !paint;
+  $('shapeFields').hidden = textObject || effect || paint;
   $('effectFields').hidden = !effect;
   // ペン・蛍光ペンは線の色と太さだけ, 白地は色だけを持つ. 白地は画像全体に固定なので, 位置・大きさの欄も出さない.
   const pen = isPenType(obj.type);
@@ -85,7 +89,7 @@ export function updateSelectionInspector() {
   $('fillField').hidden = pen;
   $('strokeField').hidden = paper;
   $('styleField').hidden = pen;
-  $('numericFields').hidden = paper;
+  $('numericFields').hidden = paper || paint;
   $('editFillLabel').textContent = badge ? '丸の色' : paper ? '色' : '塗り色';
   $('editStrokeLabel').textContent = badge ? '数字の色' : pen ? '色' : '線の色';
   $('sizeFields').hidden = textObject;
@@ -153,7 +157,7 @@ export function applyInspector() {
   let last = state.lastShape;
   if (isText(obj)) last = state.lastText;
   else if (isBadge(obj)) last = state.lastBadge;
-  else if (isPaper(obj) || pen) last = {};
+  else if (isPaper(obj) || isPaint(obj) || pen) last = {};
 
   if (touched('editX')) {
     const value = number('editX', -100, 200);

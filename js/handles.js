@@ -4,7 +4,7 @@ import { HANDLE_RADIUS, HANDLE_REACH, MIN_SHAPE_SIDE, ROTATE_OFFSET } from './co
 import { original } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
 import {
-  isLineType, isPaper, isPenType, isText, screenScale,
+  isFullLayer, isLineType, isPenType, isText, screenScale,
 } from './geometry.js';
 import { hitPen } from './pen.js';
 import { textLayout } from './text.js';
@@ -53,8 +53,8 @@ function hitTestObject(obj, point, k) {
   const frame = objectFrame(obj);
   const local = frameToLocal(frame, point);
   const tolerance = 10 * k;
-  // 白地は画像全体を覆うので, 作業領域では選ばない(上に描いたものを選びやすくする. レイヤー一覧からは選べる).
-  if (isPaper(obj)) return false;
+  // 白地・ペイントは画像全体に広がるので, 作業領域では選ばない(上に描いたものを選びやすくする. レイヤー一覧からは選べる).
+  if (isFullLayer(obj)) return false;
   if (isPenType(obj.type)) {
     const p1 = { x: frame.a.x - frame.cx, y: frame.a.y - frame.cy };
     const p2 = { x: frame.b.x - frame.cx, y: frame.b.y - frame.cy };
@@ -93,8 +93,8 @@ export function findObjectAtPoint(point) {
 // ハンドル一覧. 長方形・楕円・三角形は8方向のリサイズと回転, 直線・矢印は両端の移動.
 // テキストは大きさが文字サイズで決まるため, 四隅(拡大縮小)と回転だけを出す.
 export function objectHandles(obj) {
-  // 白地は画像全体に固定なので, ハンドルを出さない.
-  if (isPaper(obj)) return [];
+  // 白地・ペイントは画像全体に固定なので, ハンドルを出さない.
+  if (isFullLayer(obj)) return [];
   const frame = objectFrame(obj);
   if (isLineType(obj.type)) {
     return [

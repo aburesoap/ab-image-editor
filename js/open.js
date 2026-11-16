@@ -16,7 +16,7 @@ import { loadProjectFile } from './project.js';
 // 画像を読み込んでから使えるようになるボタン.
 const IMAGE_CONTROLS = [
   'convert', 'showResult', 'grayscale', 'cropReset', 'rotateLeft', 'rotateRight',
-  'saveProject', 'saveProjectEmbedded', 'download', 'copyImage', 'viewEdit', 'viewResult', 'addPaper',
+  'saveProject', 'saveProjectEmbedded', 'download', 'copyImage', 'viewEdit', 'viewResult', 'addPaper', 'addPaint',
 ];
 
 const isImageFile = (blob) => Boolean(blob) && IMAGE_TYPES.includes(blob.type);

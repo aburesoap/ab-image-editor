@@ -8,11 +8,14 @@ export const PROJECT_FORMAT = 'iMage-Editor-project';
 // 編集データの形式の版. v5 で図形の種類が増えた(角丸長方形・ひし形・星・吹き出し・太矢印・両矢印).
 // v6 で, ぼかし・モザイク(strength), 番号(number), テキストの縁取り(outline, outlineWidth)が増えた.
 // v7 で, ペン・蛍光ペン(points), 白地(paper), 元画像の埋め込み(image)が増えた.
-export const PROJECT_VERSION = 7;
+// v8 で, ペイントレイヤー(paint. 線の列 strokes を持つ)が増えた.
+export const PROJECT_VERSION = 8;
 export const SHAPE_TYPES = [
   'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'badge', 'line', 'arrow', 'arrow2',
-  'blur', 'mosaic', 'pen', 'marker', 'paper',
+  'blur', 'mosaic', 'pen', 'marker', 'paper', 'paint',
 ];
+// ペイントレイヤー1つに描ける線の数の上限.
+export const PAINT_MAX_STROKES = 3000;
 // ペン・蛍光ペンの1本あたりの点の数の上限. 超えた分は描き足さない.
 export const PEN_MAX_POINTS = 4000;
 // ペン・蛍光ペンの最初の設定. 以降は, 種類ごとに直前に使った値を引き継ぐ.
@@ -20,6 +23,8 @@ export const PEN_MAX_POINTS = 4000;
 export const PEN_DEFAULTS = {
   pen: { stroke: '#d83b3b', widthPx: 4, opacity: 1 },
   marker: { stroke: '#ffe14d', widthPx: 18, opacity: 0.8 },
+  // 消しゴムはペイントレイヤーの中だけで使える. 色は使わない.
+  eraser: { stroke: '#ffffff', widthPx: 24, opacity: 1 },
 };
 export const PEN_WIDTH_MAX_PX = 80;
 // 白地の最初の色.
@@ -100,6 +105,7 @@ export const TOOL_HINTS = {
   effect: 'ドラッグした範囲を, ぼかし・モザイクで隠す',
   text: 'クリックしてテキストを配置',
   pen: 'ドラッグして描く／Shift を押しながらで直線',
+  paint: 'ペイントレイヤーに描く／Shift を押しながらで直線',
 };
 export const TOOL_KEYS = {
   v: 'select', c: 'crop', r: 'shape', t: 'text', p: 'pen',

@@ -178,6 +178,19 @@ body {
   width: 110px;
 }
 
+.pen-target {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pen-target.active {
+  border-color: var(--blue);
+  color: var(--blue);
+  font-weight: 700;
+}
+
 .optionsbar select {
   width: auto;
   padding: 3px 6px;
@@ -784,6 +797,10 @@ button:disabled {
   border-bottom: 0;
 }
 
+.layers-head .small + .small {
+  margin-left: -2px;
+}
+
 .layers-head .small {
   margin-bottom: 3px;
   padding: 2px 8px;
@@ -954,6 +971,10 @@ button:disabled {
 
 .layer-swatch.sw-blur {
   background: radial-gradient(circle, #8a939c 0, #c9cfd5 55%, #eef0f2 100%);
+}
+
+.layer-swatch.sw-paint {
+  background: linear-gradient(135deg, transparent 30%, var(--fg) 30%, var(--fg) 46%, transparent 46%), repeating-conic-gradient(#d9dde1 0 25%, #fff 0 50%) 0 0 / 8px 8px;
 }
 
 .layer-swatch.sw-text {

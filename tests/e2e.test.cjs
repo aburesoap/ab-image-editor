@@ -274,7 +274,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -698,7 +698,7 @@ test('新しい図形は, 編集データに保存され, 読み込むと戻る'
   await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['balloon', 'arrow2']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -947,7 +947,7 @@ test('番号・ぼかし・縁取りは, 編集データに保存され, 読み�
   await setRange('editTextOutlineWidth', 3);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
   const [blur, badge, text] = saved.document.objects;
   assert.equal(Math.round(blur.strength * 400), 20);
   assert.equal(badge.number, 1);
@@ -1083,7 +1083,7 @@ test('元画像を含めて保存した編集データは, 別の画像を開い
   await page.click('#addPaper');
   const file = await saveProjectToFile('#saveProjectEmbedded');
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 7);
+  assert.equal(saved.version, 8);
   assert.equal(saved.image.type, 'image/png');
   assert.ok(saved.image.data.length > 100);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['paper', 'pen']);
@@ -1165,4 +1165,113 @@ test('フォントは Google Fonts だけから読み込み, ほかのサイト�
   await page.waitForTimeout(200);
   assert.ok(fontRequests.length > 0);
   assert.deepEqual(fontRequests.filter((url) => !url.startsWith('https://fonts.googleapis.com/') && !url.startsWith('https://fonts.gstatic.com/')), []);
+});
+
+// ---- v2.5.0 ----
+const RED = [0xd8, 0x3b, 0x3b];
+
+test('「＋ ペイント」でペイントレイヤーを足すと, ペンの線はそのレイヤーにまとまる', async () => {
+  await page.click('#addPaint');
+  assert.deepEqual(await layerNames(), ['ペイント（0 本）']);
+  assert.equal(await page.getAttribute('#toolPen', 'aria-pressed'), 'true', 'ペンの道具に持ち替える');
+  assert.match(await page.textContent('#penTarget'), /描き先: ペイント/);
+  await drawPen([[0.2, 0.3], [0.8, 0.3]]);
+  await drawPen([[0.2, 0.6], [0.8, 0.6]]);
+  assert.deepEqual(await layerNames(), ['ペイント（2 本）'], '1本ずつのレイヤーにはならない');
+  const [a, b, off] = await resultPixels([[0.5, 0.3], [0.5, 0.6], [0.5, 0.45]]);
+  assert.ok(near(a, RED) && near(b, RED), `線 (実際: ${a}, ${b})`);
+  assert.ok(near(off, BLACK), `線の外 (実際: ${off})`);
+});
+
+test('ペイントレイヤーの中の線は, 1本ずつ元に戻せ, やり直せる', async () => {
+  await page.click('#addPaint');
+  await drawPen([[0.2, 0.3], [0.8, 0.3]]);
+  await drawPen([[0.2, 0.6], [0.8, 0.6]]);
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(await layerNames(), ['ペイント（1 本）']);
+  let [a, b] = await resultPixels([[0.5, 0.3], [0.5, 0.6]]);
+  assert.ok(near(a, RED) && near(b, BLACK), `2本目だけが消える (実際: ${a}, ${b})`);
+  await page.keyboard.press('Control+y');
+  assert.deepEqual(await layerNames(), ['ペイント（2 本）']);
+  [a, b] = await resultPixels([[0.5, 0.3], [0.5, 0.6]]);
+  assert.ok(near(b, RED), `やり直すと戻る (実際: ${b})`);
+});
+
+test('消しゴムはペイントレイヤーの中だけを消し, 下の画像や白地は消さない', async () => {
+  await page.click('#addPaper');
+  await page.click('#addPaint');
+  await page.$eval('#penWidth', (el) => { el.value = '30'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await drawPen([[0.1, 0.5], [0.9, 0.5]]);
+  await page.selectOption('#penType', 'eraser');
+  assert.equal(await page.isDisabled('#penColor'), true, '消しゴムに色は無い');
+  await drawPen([[0.5, 0.2], [0.5, 0.8]]);
+  assert.deepEqual(await layerNames(), ['ペイント（2 本）', '白地']);
+  const [erased, kept] = await resultPixels([[0.5, 0.5], [0.3, 0.5]]);
+  assert.ok(near(erased, [255, 255, 255]), `消した所は, 下の白地が見える (実際: ${erased})`);
+  assert.ok(near(kept, RED), `消していない所は残る (実際: ${kept})`);
+});
+
+test('消しゴムは, ペイントレイヤーを選んでいないときは選べない. 1本ずつの線はこれまでどおり', async () => {
+  await page.keyboard.press('p');
+  assert.equal(await page.$eval('#penType option[value="eraser"]', (el) => el.disabled), true);
+  assert.equal(await page.textContent('#penTarget'), '描き先: 1本ずつの線');
+  await drawPen([[0.2, 0.5], [0.8, 0.5]]);
+  assert.deepEqual(await layerNames(), ['ペン']);
+});
+
+test('ペイントレイヤーを隠すと中の線がすべて消え, ロック中は描けない', async () => {
+  await page.click('#addPaint');
+  await drawPen([[0.2, 0.5], [0.8, 0.5]]);
+  await page.locator('#layerList [data-act=visible]').nth(0).click();
+  assert.ok(near((await resultPixels([[0.5, 0.5]]))[0], BLACK));
+  await page.locator('#layerList [data-act=visible]').nth(0).click();
+  await page.locator('#layerList [data-act=lock]').nth(0).click();
+  await drawPen([[0.2, 0.7], [0.8, 0.7]]);
+  assert.match(await status(), /ロック中・非表示のペイントレイヤーには描けません/);
+  assert.deepEqual(await layerNames(), ['ペイント（1 本）']);
+});
+
+test('ペンの道具のまま, レイヤー一覧で別のペイントレイヤーを選ぶと, 描き先が変わる', async () => {
+  await page.click('#addPaint');
+  await drawPen([[0.2, 0.3], [0.8, 0.3]]);
+  await page.click('#addPaint');
+  // 一覧の下(背面)の1つ目のレイヤーを選び直して描く.
+  await page.locator('#layerList .layer-main').nth(1).click();
+  assert.equal(await page.getAttribute('#toolPen', 'aria-pressed'), 'true', 'ペンのまま');
+  await drawPen([[0.2, 0.6], [0.8, 0.6]]);
+  assert.deepEqual(await layerNames(), ['ペイント（0 本）', 'ペイント（2 本）']);
+});
+
+test('ペイントレイヤーの蛍光ペンは, 下の色と掛け合わせて描く', async () => {
+  await page.click('#addPaper');
+  await page.keyboard.press('Escape');
+  await drawShapeOf('rect', [0.45, 0.1], [0.55, 0.9]);
+  await page.click('#addPaint');
+  await page.selectOption('#penType', 'marker');
+  await drawPen([[0.2, 0.5], [0.8, 0.5]]);
+  const [onWhite, onFill] = await resultPixels([[0.3, 0.5], [0.5, 0.5]]);
+  assert.ok(onWhite[0] > 240 && onWhite[1] > 215 && onWhite[2] < 140, `白の上は黄色 (実際: ${onWhite})`);
+  assert.ok(onFill[1] < 0xc9 && onFill[2] < 0x5d, `掛け合わせて濃くなる (実際: ${onFill})`);
+});
+
+test('ペイントレイヤーは, 編集データ(形式 v8)に保存され, 画像と一緒に回る', async () => {
+  await page.click('#addPaint');
+  await drawPen([[0.1, 0.1], [0.3, 0.1]]);
+  await page.selectOption('#penType', 'eraser');
+  await drawPen([[0.2, 0.05], [0.2, 0.15]]);
+  const file = await saveProjectToFile();
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 8);
+  assert.deepEqual(saved.document.objects[0].strokes.map((s) => s.tool), ['pen', 'eraser']);
+  await page.keyboard.press('Escape');
+  await page.click('#clearObjects');
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.deepEqual(await layerNames(), ['ペイント（2 本）']);
+  // 右へ90°回すと, 左上(0.15, 0.1)にあった線は, 回した後の画像の右上(0.9, 0.15)へ移る.
+  await page.keyboard.press('c');
+  await page.click('#rotateRight');
+  assert.equal(await page.$eval('#original', (el) => `${el.width}x${el.height}`), '300x400');
+  const [moved] = await resultPixels([[0.9, 0.15]]);
+  assert.ok(near(moved, RED), `回した後の線 (実際: ${moved})`);
 });

@@ -3,7 +3,7 @@
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
 import {
-  isBadge, isEffectType, isLineType, isPaper, isPenType, isText,
+  isBadge, isEffectType, isLineType, isPaint, isPaper, isPenType, isText,
 } from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
 
@@ -31,6 +31,8 @@ export function layerName(obj) {
     return line.length > NAME_LIMIT ? `${line.slice(0, NAME_LIMIT)}…` : line;
   }
   if (isBadge(obj)) return `番号 ${obj.number ?? ''}`;
+  // ペイントは, 描いた線の本数(消しゴムも1本と数える. 元に戻すの単位と同じ)を添える.
+  if (isPaint(obj)) return `ペイント（${(obj.strokes || []).length} 本）`;
   if (isLineType(obj.type) || isEffectType(obj.type) || isPenType(obj.type) || isPaper(obj)) return objectTypeLabel(obj.type);
   return `${objectTypeLabel(obj.type)}・${STYLE_LABELS[obj.style] || ''}`;
 }
@@ -40,6 +42,10 @@ function swatchOf(obj) {
   if (isText(obj)) return { kind: 'text', fg: obj.color, bg: obj.transparent ? '' : obj.bg };
   if (isLineType(obj.type) || isPenType(obj.type)) return { kind: 'line', fg: obj.stroke, bg: '' };
   if (isPaper(obj)) return { kind: 'fill', fg: obj.fill, bg: '' };
+  if (isPaint(obj)) {
+    const last = [...(obj.strokes || [])].reverse().find((s) => s.tool !== 'eraser');
+    return { kind: 'paint', fg: last ? last.color : '#8a939c', bg: '' };
+  }
   if (isEffectType(obj.type)) return { kind: obj.type, fg: '', bg: '' };
   if (isBadge(obj)) return { kind: 'badge', fg: obj.stroke, bg: obj.fill };
   if (obj.style === 'stroke') return { kind: 'stroke', fg: obj.stroke, bg: '' };

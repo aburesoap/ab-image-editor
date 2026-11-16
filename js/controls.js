@@ -17,13 +17,14 @@ import {
   undo,
 } from './history.js';
 import {
+  addPaint,
+  addPaper,
   clearAll,
   deleteSelected,
   duplicateSelected,
   onTabClick,
   reorderSelected,
   setTool,
-  addPaper,
   setView,
   syncShapeOptions,
 } from './actions.js';
@@ -45,7 +46,7 @@ $('toolLock').addEventListener('change', () => { state.toolLock = $('toolLock').
 // ペンの道具. 種類(ペン・蛍光ペン)ごとに, 色と太さを覚えておく.
 initColorField($('penColor'));
 $('penType').addEventListener('change', () => {
-  state.penType = $('penType').value === 'marker' ? 'marker' : 'pen';
+  state.penType = ['marker', 'eraser'].includes($('penType').value) ? $('penType').value : 'pen';
   syncPenOptions();
 });
 ['input', 'change'].forEach((name) => {
@@ -57,6 +58,9 @@ $('penWidth').addEventListener('input', () => {
 });
 syncPenOptions();
 $('addPaper').addEventListener('click', addPaper);
+$('addPaint').addEventListener('click', addPaint);
+// 編集パネルの「このレイヤーに描く」. 選んでいるペイントレイヤーを描き先にして, ペンに持ち替える.
+$('paintDraw').addEventListener('click', () => setTool('pen'));
 $('viewEdit').addEventListener('click', () => setView('edit'));
 $('viewResult').addEventListener('click', () => setView('result'));
 $('showResult').addEventListener('click', () => setView('result'));

@@ -43,25 +43,20 @@ export function penLocalPoints(points, p1, p2) {
   return list;
 }
 
-// 線を描く. ctx は, 中心を原点に, 回転を済ませた状態で渡す.
-// ペンは端と角を丸く, 蛍光ペンは端を四角くし, 下の色と掛け合わせる(乗算)ことで下の文字を透かす.
+// 点の列(描画先の座標)を, 1本の線として描く. kind が 'marker' なら端を四角く, それ以外は丸くする.
 // 線全体を1つのパスとして描くので, 自分自身と重なった部分も濃くならない.
-export function drawPen(ctx, shape, p1, p2, lineWidth) {
-  const list = penLocalPoints(shape.points || [], p1, p2);
+// 動かさずに押しただけ(点が1か所)のときは, 点(丸, 蛍光ペンは四角)を描く.
+export function strokeList(ctx, list, lineWidth, kind) {
   if (!list.length) return;
-  const marker = shape.type === 'marker';
-  ctx.strokeStyle = shape.stroke;
-  ctx.fillStyle = shape.stroke;
+  const square = kind === 'marker';
   ctx.lineWidth = lineWidth;
-  ctx.lineCap = marker ? 'square' : 'round';
-  ctx.lineJoin = marker ? 'bevel' : 'round';
-  if (marker) ctx.globalCompositeOperation = 'multiply';
+  ctx.lineCap = square ? 'square' : 'round';
+  ctx.lineJoin = square ? 'bevel' : 'round';
   const moved = list.some((p) => Math.hypot(p.x - list[0].x, p.y - list[0].y) > 0.01);
   ctx.beginPath();
   if (!moved) {
-    // 動かさずに押しただけのときは, 点(ペンは丸, 蛍光ペンは四角)を描く.
     const r = lineWidth / 2;
-    if (marker) ctx.rect(list[0].x - r, list[0].y - r, r * 2, r * 2);
+    if (square) ctx.rect(list[0].x - r, list[0].y - r, r * 2, r * 2);
     else ctx.arc(list[0].x, list[0].y, r, 0, Math.PI * 2);
     ctx.fill();
     return;
@@ -79,6 +74,15 @@ export function drawPen(ctx, shape, p1, p2, lineWidth) {
     ctx.lineTo(last.x, last.y);
   }
   ctx.stroke();
+}
+
+// 1本ずつの線(ペン・蛍光ペンのオブジェクト)を描く. ctx は, 中心を原点に, 回転を済ませた状態で渡す.
+// 蛍光ペンは, 下の色と掛け合わせる(乗算)ことで下の文字を透かす.
+export function drawPen(ctx, shape, p1, p2, lineWidth) {
+  ctx.strokeStyle = shape.stroke;
+  ctx.fillStyle = shape.stroke;
+  if (shape.type === 'marker') ctx.globalCompositeOperation = 'multiply';
+  strokeList(ctx, penLocalPoints(shape.points || [], p1, p2), lineWidth, shape.type);
 }
 
 // 点(枠の中心を原点とした座標)が, 線から tolerance 以内にあるか.

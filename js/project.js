@@ -4,6 +4,7 @@ import {
   BADGE_MAX,
   EMBED_MAX_BYTES,
   IMAGE_TYPES,
+  PAINT_MAX_STROKES,
   PEN_MAX_POINTS,
   MAX_OBJECTS,
   OUTLINE_MAX_PX,
@@ -74,7 +75,7 @@ function sanitizeShape(raw) {
   let style = SHAPE_STYLES.includes(raw.style) ? raw.style : 'fill';
   if (isLineType(raw.type) && style === 'window') style = 'stroke';
   // 番号とぼかし・モザイクには, 描画方法が無い.
-  if (raw.type === 'badge' || isEffectType(raw.type) || raw.type === 'paper') style = 'fill';
+  if (raw.type === 'badge' || isEffectType(raw.type) || raw.type === 'paper' || raw.type === 'paint') style = 'fill';
   const shape = {
     id: newObjectId(),
     type: raw.type,
@@ -99,11 +100,31 @@ function sanitizeShape(raw) {
     shape.points = points.map((v) => Math.max(0, Math.min(1, v)));
     shape.style = 'stroke';
   }
-  if (raw.type === 'paper') {
-    // 白地は, 画像全体に固定する.
+  if (raw.type === 'paper' || raw.type === 'paint') {
+    // 白地・ペイントは, 画像全体に固定する.
     Object.assign(shape, { x1: 0, y1: 0, x2: 1, y2: 1, rotation: 0 });
   }
+  if (raw.type === 'paint') {
+    // 線の形が崩れているものだけを落とし, 残りは読み込む.
+    const strokes = Array.isArray(raw.strokes) ? raw.strokes.slice(0, PAINT_MAX_STROKES) : [];
+    shape.strokes = strokes.map(sanitizeStroke).filter(Boolean);
+  }
   return shape;
+}
+
+const STROKE_TOOLS = ['pen', 'marker', 'eraser'];
+
+function sanitizeStroke(raw) {
+  if (!raw || typeof raw !== 'object' || !STROKE_TOOLS.includes(raw.tool)) return null;
+  const points = Array.isArray(raw.points) ? raw.points.slice(0, PEN_MAX_POINTS * 2) : [];
+  if (points.length < 2 || points.length % 2 || !points.every((v) => typeof v === 'number' && Number.isFinite(v))) return null;
+  return {
+    tool: raw.tool,
+    color: colorOr(raw.color, '#000000'),
+    width: limited(raw.width, 0.01, 0, 1),
+    opacity: limited(raw.opacity, 1, 0, 1),
+    points: points.map((v) => Math.max(0, Math.min(1, v))),
+  };
 }
 
 // ref は, 読み込む画像の向きでの基準幅(文字サイズの範囲の換算に使う).

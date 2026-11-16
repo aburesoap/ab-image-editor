@@ -7,10 +7,11 @@ import {
   MAX_OBJECTS,
   MIN_CROP,
   MIN_SHAPE_SIDE,
+  PAINT_MAX_STROKES,
   TEXT_MAX_PX,
   TEXT_MIN_PX,
 } from './constants.js';
-import { $, original } from './dom.js';
+import { $, original, setStatus } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
 import {
   canvasPoint, isText, moveObject, normalizeAngle, normalizedPoint, refWidth, screenScale,
@@ -18,6 +19,7 @@ import {
 import { loadFontsFor } from './text.js';
 import { makeShape, makeText, newShapeStyle } from './shapes.js';
 import { appendPenPoint, setPenPoints } from './pen.js';
+import { activePaint } from './pen-options.js';
 import {
   findObjectAtPoint,
   frameToLocal,
@@ -125,6 +127,31 @@ original.addEventListener('pointerdown', (event) => {
     // 文字は指を離した時点で配置する. 直後の疑似マウスイベントで入力欄の焦点が外れないよう, 既定の動作を止める.
     event.preventDefault();
     state.pointerAction = { mode: 'text-new', point: normalizedPoint(point) };
+  } else if (state.tool === 'pen' && activePaint()) {
+    // ペイントレイヤーを選んでいる間は, そのレイヤーの中に描く.
+    const paint = activePaint();
+    if (paint.locked || paint.hidden) {
+      setStatus('ロック中・非表示のペイントレイヤーには描けません. レイヤー一覧で解除してください');
+      return;
+    }
+    if ((paint.strokes || []).length >= PAINT_MAX_STROKES) {
+      setStatus('このペイントレイヤーには, これ以上描けません. 新しいペイントレイヤーを足してください');
+      return;
+    }
+    const start = normalizedPoint(point);
+    const look = state.lastPen[state.penType];
+    state.currentStroke = {
+      targetId: paint.id,
+      tool: state.penType,
+      color: look.stroke,
+      width: look.widthPx / refWidth(),
+      opacity: look.opacity,
+      points: [start.x, start.y],
+    };
+    state.pointerAction = { mode: 'paint', start };
+  } else if (state.tool === 'pen' && state.penType === 'eraser') {
+    setStatus('消しゴムは, ペイントレイヤーの中で使えます. レイヤー一覧の「＋ ペイント」で足してください');
+    return;
   } else if (state.tool === 'pen') {
     const start = normalizedPoint(point);
     const look = state.lastPen[state.penType];
@@ -188,6 +215,18 @@ original.addEventListener('pointermove', (event) => {
     return;
   }
   if (state.pointerAction.mode === 'text-new') return;
+  if (state.pointerAction.mode === 'paint') {
+    const action = state.pointerAction;
+    const now = normalizedPoint(point);
+    const stroke = state.currentStroke;
+    if (event.shiftKey) {
+      stroke.points = [action.start.x, action.start.y, now.x, now.y];
+    } else if (!appendPenPoint(stroke.points, now, 1.5 * screenScale() / original.width)) {
+      return;
+    }
+    requestDraw();
+    return;
+  }
   if (state.pointerAction.mode === 'pen') {
     const action = state.pointerAction;
     const now = normalizedPoint(point);
@@ -298,6 +337,19 @@ function finishPointerAction() {
       showTab('props');
       afterPlacement();
     }
+  } else if (action.mode === 'paint') {
+    // 描いた線を, レイヤーの線の列へ足す. 列は作り直して入れ替える(履歴に残した前の列を書き換えないため).
+    const stroke = state.currentStroke;
+    state.currentStroke = null;
+    const layer = stroke && objects.find((obj) => obj.id === stroke.targetId);
+    if (layer) {
+      const { targetId, ...saved } = stroke;
+      layer.strokes = [...(layer.strokes || []), saved];
+      updateSelectionInspector();
+      invalidateResult();
+      pushHistory();
+    }
+    drawEditor();
   } else if (action.mode === 'pen') {
     // 描いた線は選ばずに, 続けて描けるようペンの道具のままにする.
     if (state.currentShape && objects.length < MAX_OBJECTS) {
@@ -350,6 +402,8 @@ export function cancelPointerAction() {
     Object.assign(obj, action.initial);
   } else if (action.mode === 'shape' || action.mode === 'pen') {
     state.currentShape = null;
+  } else if (action.mode === 'paint') {
+    state.currentStroke = null;
   } else if (action.mode.startsWith('crop-')) {
     state.crop = { ...action.initial };
   }

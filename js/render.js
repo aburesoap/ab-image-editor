@@ -165,7 +165,7 @@ function drawSelection(obj) {
     octx.rotate(frame.theta);
     octx.beginPath();
     octx.rect(-hx, -hy, hx * 2, hy * 2);
-    if (!obj.locked && obj.type !== 'paper') {
+    if (!obj.locked && obj.type !== 'paper' && obj.type !== 'paint') {
       octx.moveTo(0, -hy);
       octx.lineTo(0, -hy - ROTATE_OFFSET * k);
     }

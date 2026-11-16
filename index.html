@@ -84,11 +84,13 @@
 <select id="penType">
 <option value="pen">ペン</option>
 <option value="marker">蛍光ペン</option>
+<option value="eraser" disabled>消しゴム（ペイントレイヤーの中）</option>
 </select>
 <label for="penColor">色</label>
 <button id="penColor" value="#d83b3b"></button>
 <label for="penWidth">太さ <span id="penWidthVal" class="value">4 px</span></label>
 <input id="penWidth" type="range" min="1" max="80" value="4">
+<span id="penTarget" class="pen-target">描き先: 1本ずつの線</span>
 </div>
 <div id="optLock" class="opt-group" hidden>
 <label class="check-label"><input id="toolLock" type="checkbox"> 連続して配置</label>
@@ -139,7 +141,7 @@
 <div class="panel-body">
 <section id="paneProps">
 <div class="layers">
-<div class="layers-head"><h3 id="layerHead">レイヤー <span id="layerCount" class="layer-count"></span></h3><button id="addPaper" class="ghost small" disabled title="画像全体を白で覆うレイヤーを, いちばん下に追加">＋ 白地</button></div>
+<div class="layers-head"><h3 id="layerHead">レイヤー <span id="layerCount" class="layer-count"></span></h3><button id="addPaint" class="ghost small" disabled title="上に描いた線を1つにまとめる透明なレイヤーを, いちばん上に追加">＋ ペイント</button><button id="addPaper" class="ghost small" disabled title="画像全体を白で覆うレイヤーを, いちばん下に追加">＋ 白地</button></div>
 <ol id="layerList" class="layer-list" aria-labelledby="layerHead"></ol>
 <p id="layerEmpty" class="empty-note layer-empty">図形やテキストを置くと, ここに一覧で表示します</p>
 </div>
@@ -213,6 +215,10 @@
 <label for="editLineWidth">線の太さ <span id="editLineWidthVal" class="value">4 px</span></label>
 <input id="editLineWidth" type="range" min="1" max="80" value="4">
 </div>
+</div>
+<div id="paintFields">
+<p class="setting-note">ペイントレイヤーを選んだままペンの道具で描くと, このレイヤーの中に描き足します. 消しゴムは, このレイヤーの中だけを消します. 元に戻すは1本ずつです</p>
+<div class="button-row"><button id="paintDraw" class="secondary">このレイヤーに描く（P）</button></div>
 </div>
 <div id="effectFields">
 <label for="editStrength">強さ <span id="editStrengthVal" class="value">12 px</span></label>

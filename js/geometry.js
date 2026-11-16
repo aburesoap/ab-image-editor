@@ -6,12 +6,17 @@ import { state } from './state.js';
 
 export const isLineType = (type) => type === 'line' || type === 'arrow' || type === 'arrow2';
 // 上下・左右が対称でない図形. 画像を90°回すときは, 枠の縦横を保ったまま角度を足す(rotate.js).
-export const isOrientedType = (type) => ['triangle', 'star', 'balloon', 'blockarrow'].includes(type);
+// ペン・蛍光ペンの線も, 描いた向きを保つため同じ扱いにする.
+export const isOrientedType = (type) => ['triangle', 'star', 'balloon', 'blockarrow', 'pen', 'marker'].includes(type);
 export const isText = (obj) => obj.type === 'text';
 // 下にあるものを加工して隠す範囲(ぼかし・モザイク). 色や描画方法を持たない.
 export const isEffectType = (type) => type === 'blur' || type === 'mosaic';
 // 番号(丸の中に数字). 塗りつぶしの楕円として描き, 数字を重ねる.
 export const isBadge = (obj) => obj.type === 'badge';
+// ペン・蛍光ペン(フリーハンドの線). 枠(x1, y1, x2, y2)と, 枠の中の位置(0〜1)の点の列で持つ.
+export const isPenType = (type) => type === 'pen' || type === 'marker';
+// 白地. 画像全体を1色で覆う. 作業領域では選べず, 動かせない(レイヤー一覧から選ぶ).
+export const isPaper = (obj) => obj.type === 'paper';
 
 export function getDimensions(width, height, maxSide) {
   const scale = Math.min(1, maxSide / Math.max(width, height));
@@ -102,6 +107,7 @@ export function objectCenter(obj) {
 }
 
 export function moveObject(obj, dx, dy) {
+  if (isPaper(obj)) return;
   if (isText(obj)) {
     obj.x += dx;
     obj.y += dy;

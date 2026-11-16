@@ -30,9 +30,10 @@
 <details id="fileMenu" class="menu">
 <summary id="fileMenuSummary" class="btn ghost">ファイル ▾</summary>
 <div class="menu-list">
-<button id="saveProject" class="menu-item" disabled>↓ 編集データを保存</button>
+<button id="saveProjectEmbedded" class="menu-item" disabled>↓ 編集データを保存（元画像を含む）</button>
+<button id="saveProject" class="menu-item" disabled>↓ 元画像を含めずに保存</button>
 <label class="menu-item" for="loadProject">↑ 編集データを読み込む</label><input id="loadProject" type="file" accept="application/json,.json" hidden>
-<p class="menu-note">元画像そのものは含みません. 編集前の画像を読み込んでから, 編集データ（.jsonファイル）を読み込んでください</p>
+<p class="menu-note">元画像を含めて保存すると, 1つのファイル（.json）だけで続きを開けます. 含めずに保存したものは, 編集前の画像を開いてから読み込んでください</p>
 </div>
 </details>
 <button id="copyImage" class="ghost" disabled title="仕上がりの画像をクリップボードへコピー（PNG）">⧉<span class="lbl"> コピー</span></button>
@@ -78,6 +79,17 @@
 <option value="window">窓（外側を塗る）</option>
 </select>
 </div>
+<div id="optPen" class="opt-group" hidden>
+<label for="penType">種類</label>
+<select id="penType">
+<option value="pen">ペン</option>
+<option value="marker">蛍光ペン</option>
+</select>
+<label for="penColor">色</label>
+<button id="penColor" value="#d83b3b"></button>
+<label for="penWidth">太さ <span id="penWidthVal" class="value">4 px</span></label>
+<input id="penWidth" type="range" min="1" max="80" value="4">
+</div>
 <div id="optLock" class="opt-group" hidden>
 <label class="check-label"><input id="toolLock" type="checkbox"> 連続して配置</label>
 </div>
@@ -88,6 +100,7 @@
 <button id="toolCrop" class="tool" disabled title="切り抜き・回転（C）" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14"/></svg><span>切抜</span></button>
 <button id="toolShape" class="tool" disabled title="図形（R）" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="11" width="9" height="9"/><circle cx="16" cy="8" r="5"/></svg><span>図形</span></button>
 <button id="toolText" class="tool" disabled title="テキスト（T）" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg><span>文字</span></button>
+<button id="toolPen" class="tool" disabled title="ペン・蛍光ペン（P）" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19zM14 7l3 3M4 20c3-1 5 0 7 0s4-1 6-1"/></svg><span>ペン</span></button>
 </nav>
 <main class="stage">
 <div class="stage-head">
@@ -124,7 +137,7 @@
 <div class="panel-body">
 <section id="paneProps">
 <div class="layers">
-<div class="layers-head"><h3 id="layerHead">レイヤー <span id="layerCount" class="layer-count"></span></h3></div>
+<div class="layers-head"><h3 id="layerHead">レイヤー <span id="layerCount" class="layer-count"></span></h3><button id="addPaper" class="ghost small" disabled title="画像全体を白で覆うレイヤーを, いちばん下に追加">＋ 白地</button></div>
 <ol id="layerList" class="layer-list" aria-labelledby="layerHead"></ol>
 <p id="layerEmpty" class="empty-note layer-empty">図形やテキストを置くと, ここに一覧で表示します</p>
 </div>
@@ -173,11 +186,11 @@
 </div>
 <div id="shapeFields">
 <div class="field-row">
-<div>
+<div id="fillField">
 <label id="editFillLabel" for="editFill">塗り色</label>
 <button id="editFill" value="#f4c95d"></button>
 </div>
-<div>
+<div id="strokeField">
 <label id="editStrokeLabel" for="editStroke">線の色</label>
 <button id="editStroke" value="#ffffff"></button>
 </div>
@@ -187,12 +200,14 @@
 <input id="editBadgeNumber" class="number-input" type="number" min="0" max="999" step="1" value="1">
 </div>
 <div id="strokeFields">
+<div id="styleField">
 <label for="editStyle">描画方法</label>
 <select id="editStyle">
 <option value="fill">塗りつぶし</option>
 <option value="stroke">枠線のみ</option>
 <option value="window">窓（外側を塗る）</option>
 </select>
+</div>
 <label for="editLineWidth">線の太さ <span id="editLineWidthVal" class="value">4 px</span></label>
 <input id="editLineWidth" type="range" min="1" max="80" value="4">
 </div>

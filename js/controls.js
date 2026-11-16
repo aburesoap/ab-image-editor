@@ -23,9 +23,11 @@ import {
   onTabClick,
   reorderSelected,
   setTool,
+  addPaper,
   setView,
   syncShapeOptions,
 } from './actions.js';
+import { syncPenOptions } from './pen-options.js';
 
 // 色の欄を, 自作のカラーピッカーを開くボタンにする. 値の読み書きとイベントは, 標準の入力欄と同じ.
 colorFields.forEach((id) => initColorField($(id)));
@@ -39,6 +41,22 @@ $('shapeType').addEventListener('change', () => {
   syncShapeOptions();
 });
 $('toolLock').addEventListener('change', () => { state.toolLock = $('toolLock').checked; });
+
+// ペンの道具. 種類(ペン・蛍光ペン)ごとに, 色と太さを覚えておく.
+initColorField($('penColor'));
+$('penType').addEventListener('change', () => {
+  state.penType = $('penType').value === 'marker' ? 'marker' : 'pen';
+  syncPenOptions();
+});
+['input', 'change'].forEach((name) => {
+  $('penColor').addEventListener(name, () => { state.lastPen[state.penType].stroke = $('penColor').value; });
+});
+$('penWidth').addEventListener('input', () => {
+  state.lastPen[state.penType].widthPx = Number($('penWidth').value);
+  $('penWidthVal').textContent = `${$('penWidth').value} px`;
+});
+syncPenOptions();
+$('addPaper').addEventListener('click', addPaper);
 $('viewEdit').addEventListener('click', () => setView('edit'));
 $('viewResult').addEventListener('click', () => setView('result'));
 $('showResult').addEventListener('click', () => setView('result'));

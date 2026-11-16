@@ -9,10 +9,10 @@
 //   css      … フォントを定義したスタイルシートのURL(Google Fonts など). または,
 //   files    … 太さごとのフォントファイル(woff2)のURL
 // どちらも https のURLに限る(index.html の CSP が https だけを許可している).
+// 読み込み先は, Google Fonts や, 作者が公式に公開しているパッケージなど, 長く安定して配られるものに限る.
 // 足したときは, PRIVACY.md の「外部サイトからの読み込み」に読み込み先を書く.
 
 const SANS_FALLBACK = '"Hiragino Sans", "Yu Gothic UI", Meiryo, system-ui, sans-serif';
-const MONO_FALLBACK = 'ui-monospace, "SFMono-Regular", Consolas, "Noto Sans Mono CJK JP", monospace';
 
 export const TEXT_FONTS = {
   plex: {
@@ -21,13 +21,6 @@ export const TEXT_FONTS = {
     fallback: SANS_FALLBACK,
     weights: [400, 600, 700],
     css: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;600;700&display=swap',
-  },
-  udev: {
-    label: 'UDEV Gothic（等幅）',
-    family: 'UDEV Gothic',
-    fallback: MONO_FALLBACK,
-    weights: [400],
-    files: { 400: 'https://cdn.jsdelivr.net/npm/@sarap422/font-udevgothic@1.0.0/UDEVGothic-Regular.woff2' },
   },
 };
 
@@ -39,8 +32,8 @@ const UI_ONLY_FONTS = {
     files: { 400: 'https://cdn.jsdelivr.net/npm/@ibm/plex-math@1.1.0/fonts/complete/woff2/IBMPlexMath-Regular.woff2' },
   },
 };
-// 画面の表示に使うため, 起動時に読み込みを始めるフォント. studio.css の --font-sans / --font-mono / --font-num と揃える.
-const STARTUP_FONTS = ['plex', 'udev', 'plexMath'];
+// 画面の表示に使うため, 起動時に読み込みを始めるフォント. studio.css の --font-sans / --font-num と揃える.
+const STARTUP_FONTS = ['plex', 'plexMath'];
 
 export const DEFAULT_FONT = 'plex';
 export const FONT_KEYS = Object.keys(TEXT_FONTS);

@@ -7,11 +7,25 @@ export const MAX_OBJECTS = 500;
 export const PROJECT_FORMAT = 'iMage-Editor-project';
 // 編集データの形式の版. v5 で図形の種類が増えた(角丸長方形・ひし形・星・吹き出し・太矢印・両矢印).
 // v6 で, ぼかし・モザイク(strength), 番号(number), テキストの縁取り(outline, outlineWidth)が増えた.
-export const PROJECT_VERSION = 6;
+// v7 で, ペン・蛍光ペン(points), 白地(paper), 元画像の埋め込み(image)が増えた.
+export const PROJECT_VERSION = 7;
 export const SHAPE_TYPES = [
   'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'badge', 'line', 'arrow', 'arrow2',
-  'blur', 'mosaic',
+  'blur', 'mosaic', 'pen', 'marker', 'paper',
 ];
+// ペン・蛍光ペンの1本あたりの点の数の上限. 超えた分は描き足さない.
+export const PEN_MAX_POINTS = 4000;
+// ペン・蛍光ペンの最初の設定. 以降は, 種類ごとに直前に使った値を引き継ぐ.
+// 蛍光ペンは, 下の色と掛け合わせて(乗算)描くため, 下の文字が黒いまま透けて見える.
+export const PEN_DEFAULTS = {
+  pen: { stroke: '#d83b3b', widthPx: 4, opacity: 1 },
+  marker: { stroke: '#ffe14d', widthPx: 18, opacity: 0.8 },
+};
+export const PEN_WIDTH_MAX_PX = 80;
+// 白地の最初の色.
+export const PAPER_DEFAULT = '#ffffff';
+// 編集データに埋め込める元画像の大きさの上限(バイト).
+export const EMBED_MAX_BYTES = 60 * 1024 * 1024;
 export const SHAPE_STYLES = ['fill', 'stroke', 'window'];
 export const DITHER_METHODS = ['floyd', 'atkinson', 'ordered', 'none'];
 // 開ける画像の形式. ファイルの選択(index.html の accept)と揃える.
@@ -32,7 +46,7 @@ export const MIN_SHAPE_SIDE = 4;
 // 文字サイズの範囲(UI上のpx). 編集パネルのスライダーの範囲と揃える.
 export const TEXT_MIN_PX = 8;
 export const TEXT_MAX_PX = 200;
-// 文字の見た目の中心が, ベースラインより何em上にあるか. 標準のフォント(IBM Plex Sans JP, UDEV Gothic)の「あ」「日」「H」の実測値(0.36〜0.39)に合わせている.
+// 文字の見た目の中心が, ベースラインより何em上にあるか. 標準のフォント(IBM Plex Sans JP)の「あ」「日」「H」の実測値(0.36〜0.39)に合わせている.
 export const TEXT_INK_CENTER = 0.37;
 export const TEXT_DEFAULTS = {
   content: 'テキスト', color: '#ffffff', bg: '#202020', transparent: false, sizePx: 24, font: 'plex', weight: 600,
@@ -76,7 +90,7 @@ export const sliders = ['maxSide', 'colors', 'brightness', 'contrast'];
 
 // 道具のボタン(id)と道具の名前, 道具ごとの操作の案内, ショートカットキー.
 export const TOOL_BUTTONS = {
-  toolSelect: 'select', toolCrop: 'crop', toolShape: 'shape', toolText: 'text',
+  toolSelect: 'select', toolCrop: 'crop', toolShape: 'shape', toolText: 'text', toolPen: 'pen',
 };
 export const TOOL_HINTS = {
   select: 'クリックで選択／ドラッグで移動／ハンドルでサイズ変更・回転',
@@ -85,8 +99,11 @@ export const TOOL_HINTS = {
   badge: 'クリックで番号を配置（置くたびに1つずつ増える）／ドラッグで大きさを指定',
   effect: 'ドラッグした範囲を, ぼかし・モザイクで隠す',
   text: 'クリックしてテキストを配置',
+  pen: 'ドラッグして描く／Shift を押しながらで直線',
 };
-export const TOOL_KEYS = { v: 'select', c: 'crop', r: 'shape', t: 'text' };
+export const TOOL_KEYS = {
+  v: 'select', c: 'crop', r: 'shape', t: 'text', p: 'pen',
+};
 // 新しく置く図形の最初の設定. 以降は, 直前に編集した値を引き継ぐ.
 export const SHAPE_DEFAULTS = {
   fill: '#f4c95d', stroke: '#ffffff', lineWidthPx: 4, opacity: 1,

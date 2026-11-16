@@ -16,7 +16,7 @@ import { loadProjectFile } from './project.js';
 // 画像を読み込んでから使えるようになるボタン.
 const IMAGE_CONTROLS = [
   'convert', 'showResult', 'grayscale', 'cropReset', 'rotateLeft', 'rotateRight',
-  'saveProject', 'download', 'copyImage', 'viewEdit', 'viewResult',
+  'saveProject', 'saveProjectEmbedded', 'download', 'copyImage', 'viewEdit', 'viewResult', 'addPaper',
 ];
 
 const isImageFile = (blob) => Boolean(blob) && IMAGE_TYPES.includes(blob.type);
@@ -28,19 +28,23 @@ function confirmDiscard() {
 }
 
 // 画像を開き, 編集の状態を初期化する. how は状態表示に使う(「読み込み」「貼り付け」など).
+// 開けたら true, 開かなかった(形式が違う, 破棄を断った, 読み込めなかった)ら false で解決する.
 export function openImage(blob, name, how = '読み込み') {
   if (!isImageFile(blob)) {
     setStatus('この形式の画像は開けません. PNG / JPEG / WebP / GIF / BMP / AVIF を選んでください');
-    return;
+    return Promise.resolve(false);
   }
-  if (!confirmDiscard()) return;
+  if (!confirmDiscard()) return Promise.resolve(false);
   const objectURL = URL.createObjectURL(blob);
   const image = new Image();
+  return new Promise((resolve) => {
   image.onload = () => {
     if (state.sourceURL) URL.revokeObjectURL(state.sourceURL);
     state.sourceURL = objectURL;
     state.sourceName = name;
     state.sourceImage = image;
+    // 編集データへ元画像を埋め込むときのため, ファイルそのものを持っておく.
+    state.sourceBlob = blob;
     state.crop = { ...FULL_CROP };
     state.rotation = 0;
     state.zoom.fit = true;
@@ -65,12 +69,15 @@ export function openImage(blob, name, how = '読み込み') {
     resetHistory();
     markSaved();
     setStatus(`${how}完了：${image.naturalWidth} × ${image.naturalHeight} px`);
+    resolve(true);
   };
   image.onerror = () => {
     URL.revokeObjectURL(objectURL);
     setStatus('画像を読み込めませんでした. 別の画像を選んでください');
+    resolve(false);
   };
   image.src = objectURL;
+  });
 }
 
 // ---- ファイルの選択 ----
@@ -112,7 +119,7 @@ window.addEventListener('drop', (event) => {
   const image = files.find(isImageFile);
   const project = files.find(isProjectFile);
   if (image) openImage(image, image.name);
-  else if (project) loadProjectFile(project);
+  else if (project) loadProjectFile(project, openImage);
   else setStatus('ドロップしたファイルは開けません. 画像（PNG / JPEG / WebP / GIF / BMP / AVIF）か, 編集データ（.json）を選んでください');
 });
 
@@ -161,3 +168,10 @@ export async function pasteFromClipboard() {
 }
 
 $('pasteImage').addEventListener('click', pasteFromClipboard);
+
+// ---- 編集データの読み込み ----
+$('loadProject').addEventListener('change', async () => {
+  const projectFile = $('loadProject').files?.[0];
+  $('loadProject').value = '';
+  if (projectFile) await loadProjectFile(projectFile, openImage);
+});

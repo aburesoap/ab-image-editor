@@ -2,6 +2,9 @@
 
 import {
   BADGE_MAX,
+  EMBED_MAX_BYTES,
+  IMAGE_TYPES,
+  PEN_MAX_POINTS,
   MAX_OBJECTS,
   OUTLINE_MAX_PX,
   MIN_CROP,
@@ -18,11 +21,29 @@ import { $, downloadBlob, setStatus } from './dom.js';
 import { newObjectId, state } from './state.js';
 import { FONT_KEYS, nearestWeight } from './fonts.js';
 import {
-  ROTATIONS, isEffectType, isLineType, refWidth,
+  ROTATIONS, isEffectType, isLineType, isPenType, refWidth,
 } from './geometry.js';
 import { markSaved, resetHistory, restoreSnapshot, snapshot } from './history.js';
 
-$('saveProject').addEventListener('click', () => {
+// ファイルの中身を, base64 の文字列にする(先頭の「data:…;base64,」は除く).
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function base64ToBlob(data, type) {
+  const binary = atob(data);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return new Blob([bytes], { type });
+}
+
+// 編集データを保存する. embed が true なら, 元画像のファイルも中に入れ, 1つのファイルだけで開けるようにする.
+async function saveProject(embed) {
   if (!state.sourceImage) return;
   const snap = snapshot();
   const project = {
@@ -32,17 +53,29 @@ $('saveProject').addEventListener('click', () => {
     document: { crop: snap.crop, objects: snap.objects, rotation: snap.rotation },
     conversion: snap.conversion,
   };
-  downloadBlob(new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' }), 'iMage-Editor-project.json');
+  if (embed) {
+    const blob = state.sourceBlob;
+    if (!blob || !IMAGE_TYPES.includes(blob.type) || blob.size > EMBED_MAX_BYTES) {
+      setStatus('元画像が大きすぎるか, 形式に対応していないため, 埋め込めません. 「元画像を含めずに保存」をお使いください');
+      return;
+    }
+    project.image = { type: blob.type, data: await blobToBase64(blob) };
+  }
+  downloadBlob(new Blob([JSON.stringify(project, null, embed ? 0 : 2)], { type: 'application/json' }), 'iMage-Editor-project.json');
   markSaved();
-});
+  setStatus(embed ? '編集データを保存しました（元画像を含む）' : '編集データを保存しました（元画像を含まない）');
+}
+
+$('saveProjectEmbedded').addEventListener('click', () => saveProject(true));
+$('saveProject').addEventListener('click', () => saveProject(false));
 
 function sanitizeShape(raw) {
   if (!raw || typeof raw !== 'object' || !SHAPE_TYPES.includes(raw.type)) return null;
   let style = SHAPE_STYLES.includes(raw.style) ? raw.style : 'fill';
   if (isLineType(raw.type) && style === 'window') style = 'stroke';
   // 番号とぼかし・モザイクには, 描画方法が無い.
-  if (raw.type === 'badge' || isEffectType(raw.type)) style = 'fill';
-  return {
+  if (raw.type === 'badge' || isEffectType(raw.type) || raw.type === 'paper') style = 'fill';
+  const shape = {
     id: newObjectId(),
     type: raw.type,
     style,
@@ -59,6 +92,18 @@ function sanitizeShape(raw) {
     ...(isEffectType(raw.type) ? { strength: limited(raw.strength, 0.024, 0, 1) } : {}),
     ...(raw.type === 'badge' ? { number: Math.round(limited(raw.number, 1, 0, BADGE_MAX)) } : {}),
   };
+  if (isPenType(raw.type)) {
+    // ペン・蛍光ペンの点は, 枠の中の位置(0〜1)の組. 形が崩れていれば, その線は読み込まない.
+    const points = Array.isArray(raw.points) ? raw.points.slice(0, PEN_MAX_POINTS * 2) : [];
+    if (points.length < 2 || points.length % 2 || !points.every((v) => typeof v === 'number' && Number.isFinite(v))) return null;
+    shape.points = points.map((v) => Math.max(0, Math.min(1, v)));
+    shape.style = 'stroke';
+  }
+  if (raw.type === 'paper') {
+    // 白地は, 画像全体に固定する.
+    Object.assign(shape, { x1: 0, y1: 0, x2: 1, y2: 1, rotation: 0 });
+  }
+  return shape;
 }
 
 // ref は, 読み込む画像の向きでの基準幅(文字サイズの範囲の換算に使う).
@@ -113,13 +158,22 @@ function sanitizeDocument(raw) {
   };
 }
 
-// 編集データ(.json)を読み込む. ファイルの選択と, ドロップ(open.js)から使う.
-export async function loadProjectFile(projectFile) {
+// 編集データ(.json)を読み込む. ファイルの選択と, ドロップから使う(どちらも open.js).
+// 元画像が埋め込まれていれば, openImage(blob, name) でその画像を開いてから反映する.
+// openImage は open.js から渡してもらう(このモジュールが open.js を読み込むと, 循環してしまうため).
+export async function loadProjectFile(projectFile, openImage) {
   try {
     const project = JSON.parse(await projectFile.text());
     if (!project || project.format !== PROJECT_FORMAT || !project.document || !project.conversion) throw new Error('invalid project');
     // 新しい版で保存されたデータは, 知らない設定を落として壊してしまうため読み込まない.
     if (finite(project.version, 1) > PROJECT_VERSION) throw new Error('newer project');
+    if (project.image) {
+      const { type, data } = project.image;
+      if (!IMAGE_TYPES.includes(type) || typeof data !== 'string' || data.length > EMBED_MAX_BYTES * 1.4) throw new Error('invalid project');
+      const name = typeof project.source?.name === 'string' ? project.source.name.slice(0, 200) : '編集データの画像';
+      // 開くのをやめた(未保存の編集の破棄を断った)場合は, 何も変えない.
+      if (!(await openImage(base64ToBlob(data, type), name))) return;
+    }
     if (!state.sourceImage) throw new Error('source image required');
     const size = project.source || {};
     if (size.width !== state.sourceImage.naturalWidth || size.height !== state.sourceImage.naturalHeight) throw new Error('source dimensions differ');
@@ -132,7 +186,7 @@ export async function loadProjectFile(projectFile) {
     setStatus('編集データを読み込みました');
   } catch (error) {
     setStatus(error.message === 'source image required'
-      ? '先に元画像を読み込んでください'
+      ? '先に元画像を読み込んでください（元画像を含めて保存した編集データなら, そのまま開けます）'
       : error.message === 'source dimensions differ'
         ? '元画像のサイズが保存データと一致しません'
         : error.message === 'newer project'
@@ -140,9 +194,3 @@ export async function loadProjectFile(projectFile) {
           : '編集データを読み込めませんでした');
   }
 }
-
-$('loadProject').addEventListener('change', async () => {
-  const projectFile = $('loadProject').files?.[0];
-  $('loadProject').value = '';
-  if (projectFile) await loadProjectFile(projectFile);
-});

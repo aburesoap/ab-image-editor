@@ -17,6 +17,7 @@ import {
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { makeShape, makeText, newShapeStyle } from './shapes.js';
+import { appendPenPoint, setPenPoints } from './pen.js';
 import {
   findObjectAtPoint,
   frameToLocal,
@@ -124,6 +125,23 @@ original.addEventListener('pointerdown', (event) => {
     // 文字は指を離した時点で配置する. 直後の疑似マウスイベントで入力欄の焦点が外れないよう, 既定の動作を止める.
     event.preventDefault();
     state.pointerAction = { mode: 'text-new', point: normalizedPoint(point) };
+  } else if (state.tool === 'pen') {
+    const start = normalizedPoint(point);
+    const look = state.lastPen[state.penType];
+    state.currentShape = makeShape(start, start, {
+      type: state.penType,
+      style: 'stroke',
+      stroke: look.stroke,
+      // 太さも画像幅に対する比率で保存し, 出力解像度に追従させる.
+      lineWidth: look.widthPx / refWidth(),
+      opacity: look.opacity,
+      rotation: 0,
+      hidden: false,
+      locked: false,
+    });
+    const absolute = [start.x, start.y];
+    setPenPoints(state.currentShape, absolute);
+    state.pointerAction = { mode: 'pen', start, absolute };
   } else if (state.tool === 'shape') {
     const start = normalizedPoint(point);
     state.currentShape = makeShape(start, start, newShapeStyle());
@@ -170,6 +188,22 @@ original.addEventListener('pointermove', (event) => {
     return;
   }
   if (state.pointerAction.mode === 'text-new') return;
+  if (state.pointerAction.mode === 'pen') {
+    const action = state.pointerAction;
+    const now = normalizedPoint(point);
+    if (event.shiftKey) {
+      // Shift を押している間は, 書き始めの点から今の点までの直線にする.
+      action.absolute = [action.start.x, action.start.y, now.x, now.y];
+    } else {
+      // 画面上で1.5pxより近い点は足さない(点の数を抑える).
+      const before = action.absolute.length;
+      appendPenPoint(action.absolute, now, 1.5 * screenScale() / original.width);
+      if (action.absolute.length === before) return;
+    }
+    setPenPoints(state.currentShape, action.absolute);
+    requestDraw();
+    return;
+  }
   if (state.pointerAction.mode === 'shape') {
     const end = normalizedPoint(point);
     state.currentShape.x2 = end.x;
@@ -264,6 +298,16 @@ function finishPointerAction() {
       showTab('props');
       afterPlacement();
     }
+  } else if (action.mode === 'pen') {
+    // 描いた線は選ばずに, 続けて描けるようペンの道具のままにする.
+    if (state.currentShape && objects.length < MAX_OBJECTS) {
+      objects.push(state.currentShape);
+      updateSelectionInspector();
+      invalidateResult();
+      pushHistory();
+    }
+    state.currentShape = null;
+    drawEditor();
   } else if (action.mode === 'text-new') {
     if (objects.length < MAX_OBJECTS) {
       objects.push(makeText(action.point));
@@ -304,7 +348,7 @@ export function cancelPointerAction() {
   const obj = selectedObject();
   if ((action.mode === 'object-move' || action.mode === 'handle') && obj && action.initial) {
     Object.assign(obj, action.initial);
-  } else if (action.mode === 'shape') {
+  } else if (action.mode === 'shape' || action.mode === 'pen') {
     state.currentShape = null;
   } else if (action.mode.startsWith('crop-')) {
     state.crop = { ...action.initial };

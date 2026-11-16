@@ -143,9 +143,9 @@ async function resultPixel(fx, fy) {
 
 const near = (actual, expected) => actual.every((value, i) => Math.abs(value - expected[i]) <= 2);
 
-async function saveProjectToFile() {
+async function saveProjectToFile(button = '#saveProject') {
   await page.click('#fileMenuSummary');
-  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#saveProject')]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click(button)]);
   const file = path.join(tmpDir, `project-${Date.now()}.json`);
   await download.saveAs(file);
   return file;
@@ -274,7 +274,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 6);
+  assert.equal(saved.version, 7);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -698,7 +698,7 @@ test('新しい図形は, 編集データに保存され, 読み込むと戻る'
   await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 6);
+  assert.equal(saved.version, 7);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['balloon', 'arrow2']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -820,11 +820,6 @@ test('フォントは外部から読み込み, 選択肢はフォントの一覧
 
   await placeText([0.5, 0.5], '注釈');
   assert.deepEqual(await page.$$eval('#editTextFont option', (els) => els.map((el) => [el.value, el.textContent])), registry.keys.map((key, i) => [key, registry.labels[i]]));
-  // 太さが1つしか無いフォントでは, 太さを選べない. 戻すと選べる.
-  await page.selectOption('#editTextFont', 'udev');
-  assert.equal(await page.isDisabled('#editTextWeight'), true);
-  assert.equal(await page.inputValue('#editTextWeight'), '400');
-  await page.selectOption('#editTextFont', 'plex');
   assert.equal(await page.isDisabled('#editTextWeight'), false);
   // フォントを読み込めなくても, 端末内のフォントで文字が描かれる(背景色の箱が出る).
   assert.ok(near(await resultPixel(0.5, 0.42), [0x20, 0x20, 0x20]) || near(await resultPixel(0.5, 0.45), [0x20, 0x20, 0x20]), 'テキストの背景');
@@ -942,7 +937,7 @@ test('テキストに縁取りを付けられる. 縁取りの分だけ枠が広
   assert.ok(await redCount() > 50, '赤い縁取りが描かれる');
 });
 
-test('番号・ぼかし・縁取りは, 編集データ(形式 v6)に保存され, 読み込むと戻る', async () => {
+test('番号・ぼかし・縁取りは, 編集データに保存され, 読み込むと戻る', async () => {
   await drawShapeOf('blur', [0.1, 0.1], [0.3, 0.3]);
   await setRange('editStrength', 20);
   await page.keyboard.press('Escape');
@@ -952,7 +947,7 @@ test('番号・ぼかし・縁取りは, 編集データ(形式 v6)に保存さ�
   await setRange('editTextOutlineWidth', 3);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 6);
+  assert.equal(saved.version, 7);
   const [blur, badge, text] = saved.document.objects;
   assert.equal(Math.round(blur.strength * 400), 20);
   assert.equal(badge.number, 1);
@@ -966,4 +961,151 @@ test('番号・ぼかし・縁取りは, 編集データ(形式 v6)に保存さ�
   assert.equal(await page.inputValue('#editTextOutlineWidth'), '3');
   await page.locator('#layerList .layer-main').nth(2).click();
   assert.equal(await page.inputValue('#editStrength'), '20');
+});
+
+// ---- v2.3.0 ----
+// スライダーをドラッグしたときと同じく, input だけを続けて送る(change は最後に1回).
+async function dragRange(id, values) {
+  await page.$eval(`#${id}`, (el, list) => {
+    list.forEach((v) => {
+      el.value = String(v);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, values);
+}
+
+test('スライダーを動かして元の値へ戻すと, 元の値が反映される(縁取りが残らない)', async () => {
+  await placeText([0.5, 0.5], 'ABC');
+  await page.check('#editTextTransparent');
+  await dragRange('editTextOutlineWidth', [1, 2, 3, 4, 3, 2, 1, 0]);
+  const width = await page.evaluate(async () => (await import(`${location.origin}/js/state.js`)).objects[0].outlineWidth);
+  assert.equal(width, 0);
+  await dragRange('editOpacity', [90, 80, 90, 100]);
+  const opacity = await page.evaluate(async () => (await import(`${location.origin}/js/state.js`)).objects[0].opacity);
+  assert.equal(opacity, 1);
+});
+
+test('フォントは IBM Plex Sans JP だけ. 消したフォント(UDEV Gothic)の編集データは, IBM Plex Sans JP で読み込む', async () => {
+  assert.deepEqual(await page.$$eval('#editTextFont option', (els) => els.map((el) => el.value)), ['plex']);
+  assert.equal(fontRequests.some((url) => /udev/i.test(url)), false, 'UDEV Gothic は読み込まない');
+  const file = path.join(tmpDir, `udev-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({
+    format: 'iMage-Editor-project', version: 5, source: { width: IMAGE_W, height: IMAGE_H },
+    document: { crop: { x: 0, y: 0, w: 1, h: 1 }, rotation: 0, objects: [{ type: 'text', content: '等幅', font: 'udev', weight: 400, size: 0.06, x: 0.5, y: 0.5 }] },
+    conversion: {},
+  }));
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  await page.locator('#layerList .layer-main').nth(0).click();
+  assert.equal(await page.inputValue('#editTextFont'), 'plex');
+  assert.equal(await page.inputValue('#editTextWeight'), '400');
+});
+
+// ペンで, 画像上の位置(割合)の点の列をなぞる. shift なら Shift を押しながら.
+async function drawPen(points, shift = false) {
+  await page.keyboard.press('p');
+  const list = await Promise.all(points.map((pt) => at(...pt)));
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.move(list[0].x, list[0].y);
+  await page.mouse.down();
+  for (const p of list.slice(1)) await page.mouse.move(p.x, p.y, { steps: 6 });
+  await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
+}
+
+test('ペンで描いた線は, なぞった所に描かれ, ペンの道具のまま続けて描ける', async () => {
+  await drawPen([[0.2, 0.5], [0.5, 0.5], [0.5, 0.8]]);
+  await drawPen([[0.7, 0.2], [0.9, 0.3]]);
+  assert.deepEqual(await layerNames(), ['ペン', 'ペン']);
+  assert.equal(await page.getAttribute('#toolPen', 'aria-pressed'), 'true', 'ペンの道具のまま');
+  const [onLine, corner, offLine] = await resultPixels([[0.35, 0.5], [0.5, 0.65], [0.35, 0.65]]);
+  assert.ok(near(onLine, [0xd8, 0x3b, 0x3b]), `線の上 (実際: ${onLine})`);
+  assert.ok(near(corner, [0xd8, 0x3b, 0x3b]), `折れた先の線の上 (実際: ${corner})`);
+  assert.ok(near(offLine, BLACK), `線の外 (実際: ${offLine})`);
+  // 選択の道具で, 線の上を押すと選べる. 線から離れた枠の内側では選ばない.
+  await page.keyboard.press('v');
+  const off = await at(0.3, 0.7);
+  await page.mouse.click(off.x, off.y);
+  assert.equal(await page.isVisible('#propBody'), false, '線の外では選ばない');
+  const on = await at(0.35, 0.5);
+  await page.mouse.click(on.x, on.y);
+  assert.match(await selectedName(), /ペン/);
+  assert.equal(await page.isVisible('#fillField'), false, 'ペンには塗り色が無い');
+});
+
+test('Shift を押しながら描くと直線になる', async () => {
+  await drawPen([[0.2, 0.3], [0.4, 0.6], [0.6, 0.3]], true);
+  // 書き始めと終わりを結ぶ直線(y = 0.3)の上は描かれ, 途中で通った点(0.4, 0.6)は描かれない.
+  const [mid, detour] = await resultPixels([[0.4, 0.3], [0.4, 0.6]]);
+  assert.ok(near(mid, [0xd8, 0x3b, 0x3b]), `直線の上 (実際: ${mid})`);
+  assert.ok(near(detour, BLACK), `途中の点 (実際: ${detour})`);
+});
+
+test('白地を足すと画像全体が白くなり, 上に描いた線はそのまま. 白地は作業領域では選ばない', async () => {
+  await drawPen([[0.2, 0.5], [0.8, 0.5]]);
+  await page.click('#addPaper');
+  assert.deepEqual(await layerNames(), ['ペン', '白地'], '白地はいちばん下');
+  assert.equal(await page.isVisible('#numericFields'), false, '白地には位置・大きさの欄が無い');
+  const [paper, line, corner] = await resultPixels([[0.5, 0.2], [0.5, 0.5], [0.05, 0.05]]);
+  assert.ok(near(paper, [255, 255, 255]), `白地 (実際: ${paper})`);
+  assert.ok(near(corner, [255, 255, 255]), `元画像の赤い隅も覆う (実際: ${corner})`);
+  assert.ok(near(line, [0xd8, 0x3b, 0x3b]), `線 (実際: ${line})`);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('v');
+  const p = await at(0.5, 0.2);
+  await page.mouse.click(p.x, p.y);
+  assert.equal(await page.isVisible('#propBody'), false);
+});
+
+test('蛍光ペンは下の色と掛け合わせて描く(白の上は色が付き, 黒の上は黒のまま)', async () => {
+  await page.click('#addPaper');
+  await page.keyboard.press('Escape');
+  await drawRect([0.45, 0.1], [0.55, 0.9]);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('p');
+  await page.selectOption('#penType', 'marker');
+  assert.equal(await page.inputValue('#penWidth'), '18');
+  await drawPen([[0.2, 0.5], [0.8, 0.5]]);
+  assert.deepEqual((await layerNames())[0], '蛍光ペン');
+  const [onWhite, onFill] = await resultPixels([[0.3, 0.5], [0.5, 0.5]]);
+  // 白の上: 黄色(#ffe14d)を80%で掛け合わせる.
+  assert.ok(onWhite[0] > 240 && onWhite[1] > 215 && onWhite[2] < 140, `白の上は黄色 (実際: ${onWhite})`);
+  // 黄色の長方形(#f4c95d)の上は, より濃い色になる.
+  assert.ok(onFill[1] < 0xc9 && onFill[2] < 0x5d, `掛け合わせて濃くなる (実際: ${onFill})`);
+  // ペンに戻すと, ペンの色と太さに戻る.
+  await page.selectOption('#penType', 'pen');
+  assert.equal(await page.inputValue('#penWidth'), '4');
+});
+
+test('元画像を含めて保存した編集データは, 別の画像を開いていても, それだけで元の画像ごと開ける', async () => {
+  await drawPen([[0.2, 0.5], [0.8, 0.5]]);
+  await page.click('#addPaper');
+  const file = await saveProjectToFile('#saveProjectEmbedded');
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 7);
+  assert.equal(saved.image.type, 'image/png');
+  assert.ok(saved.image.data.length > 100);
+  assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['paper', 'pen']);
+
+  // 別の大きさの画像に開き直してから, 編集データを読み込む.
+  await page.setInputFiles('#file', { name: 'other.png', mimeType: 'image/png', buffer: await makeImage(200, 100) });
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.waitForFunction(() => document.getElementById('original').width === 200);
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.equal(await page.$eval('#original', (el) => `${el.width}x${el.height}`), '400x300');
+  assert.deepEqual(await layerNames(), ['ペン', '白地']);
+  const [line] = await resultPixels([[0.5, 0.5]]);
+  assert.ok(near(line, [0xd8, 0x3b, 0x3b]), `線 (実際: ${line})`);
+});
+
+test('元画像を含めずに保存した編集データは, 画像が無ければ案内を出す', async () => {
+  const file = await saveProjectToFile('#saveProject');
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.image, undefined);
+  await page.setInputFiles('#file', { name: 'other.png', mimeType: 'image/png', buffer: await makeImage(200, 100) });
+  await page.waitForFunction(() => document.getElementById('original').width === 200);
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('サイズが保存データと一致しません'));
 });

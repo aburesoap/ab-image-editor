@@ -16,7 +16,7 @@ import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
 import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
 import {
-  isBadge, isEffectType, isLineType, isText, moveObject, objectCenter, refWidth,
+  isBadge, isEffectType, isLineType, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
@@ -24,6 +24,7 @@ import { requestDraw } from './render.js';
 import { invalidateResult } from './convert.js';
 import { renderLayerList } from './layers.js';
 import { syncColorPicker } from './colorpicker.js';
+import { syncPenOptions } from './pen-options.js';
 
 const fieldValue = (id) => {
   const el = $(id);
@@ -76,10 +77,17 @@ export function updateSelectionInspector() {
   // ぼかし・モザイクは色を持たず, 強さだけを持つ. 番号は, 丸の色・数字の色・番号を持つ.
   $('shapeFields').hidden = textObject || effect;
   $('effectFields').hidden = !effect;
+  // ペン・蛍光ペンは線の色と太さだけ, 白地は色だけを持つ. 白地は画像全体に固定なので, 位置・大きさの欄も出さない.
+  const pen = isPenType(obj.type);
+  const paper = isPaper(obj);
   $('badgeFields').hidden = !badge;
-  $('strokeFields').hidden = badge;
-  $('editFillLabel').textContent = badge ? '丸の色' : '塗り色';
-  $('editStrokeLabel').textContent = badge ? '数字の色' : '線の色';
+  $('strokeFields').hidden = badge || paper;
+  $('fillField').hidden = pen;
+  $('strokeField').hidden = paper;
+  $('styleField').hidden = pen;
+  $('numericFields').hidden = paper;
+  $('editFillLabel').textContent = badge ? '丸の色' : paper ? '色' : '塗り色';
+  $('editStrokeLabel').textContent = badge ? '数字の色' : pen ? '色' : '線の色';
   $('sizeFields').hidden = textObject;
   const flags = [obj.hidden ? '非表示' : '', obj.locked ? 'ロック中' : ''].filter(Boolean).join('・');
   $('selectedObjectName').textContent = `${objectTypeLabel(obj.type)}（重ね順 ${state.selectedIndex + 1} / ${objects.length}）${flags ? ` ${flags}` : ''}`;
@@ -140,7 +148,12 @@ export function applyInspector() {
     return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : null;
   };
   const ref = refWidth();
-  const last = isText(obj) ? state.lastText : isBadge(obj) ? state.lastBadge : state.lastShape;
+  // 触った色や太さは, 同じ種類の次のものへ引き継ぐ. ペン・蛍光ペンは種類ごとに覚え, 白地は引き継がない.
+  const pen = isPenType(obj.type);
+  let last = state.lastShape;
+  if (isText(obj)) last = state.lastText;
+  else if (isBadge(obj)) last = state.lastBadge;
+  else if (isPaper(obj) || pen) last = {};
 
   if (touched('editX')) {
     const value = number('editX', -100, 200);
@@ -261,8 +274,17 @@ export function applyInspector() {
         last.lineWidthPx = value;
       }
     }
+    if (pen) {
+      // ペンの道具のオプションバーにも, 同じ色と太さを反映する.
+      if (touched('editStroke')) state.lastPen[obj.type].stroke = obj.stroke;
+      if (touched('editLineWidth')) state.lastPen[obj.type].widthPx = Math.round(obj.lineWidth * ref);
+      if (state.penType === obj.type) syncPenOptions();
+    }
   }
   updateInspectorLabels();
+  // 反映した値を, 次に比べる基準にする. 基準を選んだ時点のままにすると, スライダーを動かして元の値へ戻したとき,
+  // 「触っていない」と見なされて最後の値が反映されず, 途中の値(縁取り1pxなど)が残ってしまう.
+  rememberFields();
   // 文字の内容や色が変わると, 一覧の名前と見本も変わる.
   renderLayerList();
   requestDraw();

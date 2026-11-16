@@ -1,6 +1,8 @@
 // 道具・表示・パネルの切り替えと, オブジェクトの操作(削除・複製・重ね順など).
 
-import { MAX_OBJECTS, TOOL_BUTTONS, TOOL_HINTS } from './constants.js';
+import {
+  MAX_OBJECTS, PAPER_DEFAULT, TOOL_BUTTONS, TOOL_HINTS,
+} from './constants.js';
 import { $, original, setStatus } from './dom.js';
 import { newObjectId, objects, selectedObject, state } from './state.js';
 import { isBadge, isEffectType, moveObject } from './geometry.js';
@@ -27,6 +29,7 @@ export function updateToolUI() {
   });
   $('optCrop').hidden = state.tool !== 'crop';
   $('optShape').hidden = state.tool !== 'shape';
+  $('optPen').hidden = state.tool !== 'pen';
   $('optLock').hidden = state.tool !== 'shape' && state.tool !== 'text';
   $('toolHint').textContent = toolHint();
   original.className = `tool-${state.tool}`;
@@ -170,6 +173,32 @@ export function duplicateSelected() {
   objects.splice(state.selectedIndex + 1, 0, copy);
   state.selectedIndex += 1;
   updateSelectionInspector();
+  commitChange();
+}
+
+// 白地を, いちばん下(元画像のすぐ上)に足して選ぶ. 白地の上に描けば, 簡単なお絵描きにも使える.
+export function addPaper() {
+  if (!state.sourceImage || objects.length >= MAX_OBJECTS) return;
+  objects.unshift({
+    id: newObjectId(),
+    type: 'paper',
+    style: 'fill',
+    fill: PAPER_DEFAULT,
+    stroke: PAPER_DEFAULT,
+    lineWidth: 0,
+    opacity: 1,
+    rotation: 0,
+    hidden: false,
+    locked: false,
+    x1: 0,
+    y1: 0,
+    x2: 1,
+    y2: 1,
+  });
+  state.selectedIndex = 0;
+  if (state.tool !== 'select') setTool('select', true);
+  updateSelectionInspector();
+  showTab('props');
   commitChange();
 }
 

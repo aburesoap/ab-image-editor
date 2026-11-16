@@ -3,7 +3,10 @@
 import { HANDLE_RADIUS, HANDLE_REACH, MIN_SHAPE_SIDE, ROTATE_OFFSET } from './constants.js';
 import { original } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
-import { isLineType, isText, screenScale } from './geometry.js';
+import {
+  isLineType, isPaper, isPenType, isText, screenScale,
+} from './geometry.js';
+import { hitPen } from './pen.js';
 import { textLayout } from './text.js';
 
 // オブジェクトの位置関係をcanvas上のpxで表す. 回転は中心を軸に, 描画処理と同じ向きで扱う.
@@ -50,6 +53,13 @@ function hitTestObject(obj, point, k) {
   const frame = objectFrame(obj);
   const local = frameToLocal(frame, point);
   const tolerance = 10 * k;
+  // 白地は画像全体を覆うので, 作業領域では選ばない(上に描いたものを選びやすくする. レイヤー一覧からは選べる).
+  if (isPaper(obj)) return false;
+  if (isPenType(obj.type)) {
+    const p1 = { x: frame.a.x - frame.cx, y: frame.a.y - frame.cy };
+    const p2 = { x: frame.b.x - frame.cx, y: frame.b.y - frame.cy };
+    return hitPen(obj.points, p1, p2, local, tolerance + Number(obj.lineWidth || 0) * original.width / 2);
+  }
   if (isLineType(obj.type)) {
     const ax = frame.a.x - frame.cx;
     const ay = frame.a.y - frame.cy;
@@ -83,6 +93,8 @@ export function findObjectAtPoint(point) {
 // ハンドル一覧. 長方形・楕円・三角形は8方向のリサイズと回転, 直線・矢印は両端の移動.
 // テキストは大きさが文字サイズで決まるため, 四隅(拡大縮小)と回転だけを出す.
 export function objectHandles(obj) {
+  // 白地は画像全体に固定なので, ハンドルを出さない.
+  if (isPaper(obj)) return [];
   const frame = objectFrame(obj);
   if (isLineType(obj.type)) {
     return [

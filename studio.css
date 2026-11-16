@@ -11,7 +11,6 @@
   --red: #c24e42;
   --focus: #194c9b;
   --font-sans: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
-  --font-mono: "UDEV Gothic", ui-monospace, "SFMono-Regular", Consolas, "Noto Sans Mono CJK JP", monospace;
   --font-num: "IBM Plex Math", var(--font-sans);
 }
 
@@ -168,6 +167,16 @@ body {
   margin: 0;
 }
 
+/* オプションバーでは, 値を項目名の右に並べる(パネルのように右端へ寄せない). */
+.optionsbar .value {
+  float: none;
+  margin-left: 4px;
+}
+
+#penWidth {
+  width: 110px;
+}
+
 .optionsbar select {
   width: auto;
   padding: 3px 6px;
@@ -296,7 +305,7 @@ body {
   border-top: 1px solid var(--line);
   background: var(--sheet);
   color: var(--blue);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -358,7 +367,7 @@ body {
 .file-drop small {
   margin-left: auto;
   color: var(--muted);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-weight: 400;
 }
 
@@ -425,7 +434,7 @@ body {
   margin: 18px 0 0;
   text-align: center;
   color: var(--muted);
-  font: 11px var(--font-mono);
+  font: 11px var(--font-sans);
 }
 
 details.fold {
@@ -688,6 +697,26 @@ button:disabled {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.layers-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin: 16px 0 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.layers-head h3 {
+  flex: 1 1 auto;
+  margin: 0;
+  border-bottom: 0;
+}
+
+.layers-head .small {
+  margin-bottom: 3px;
+  padding: 2px 8px;
+  font-size: 12px;
 }
 
 .layer-count {

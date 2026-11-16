@@ -1,6 +1,6 @@
 // 共有の状態. 複数のモジュールから書き換えるため, 1つのオブジェクトにまとめている.
 import {
-  BADGE_DEFAULTS, EFFECT_DEFAULTS, FULL_CROP, SHAPE_DEFAULTS, TEXT_DEFAULTS,
+  BADGE_DEFAULTS, EFFECT_DEFAULTS, FULL_CROP, PEN_DEFAULTS, SHAPE_DEFAULTS, TEXT_DEFAULTS,
 } from './constants.js';
 
 // 状態. 値を代入し直すものは, このオブジェクトのプロパティとして持つ.
@@ -9,7 +9,7 @@ export const state = {
   sourceURL: null,
   sourceName: '',
   grayscale: false,
-  // 現在の道具(select / crop / shape / text)と, ステージの表示(edit / result).
+  // 現在の道具(select / crop / shape / text / pen)と, ステージの表示(edit / result).
   tool: 'select',
   view: 'edit',
   // 図形・テキストを置いたあとも, 同じ道具のままにするか.
@@ -31,6 +31,11 @@ export const state = {
   },
   lastBadge: { fill: BADGE_DEFAULTS.fill, stroke: BADGE_DEFAULTS.stroke },
   lastEffect: { strengthPx: EFFECT_DEFAULTS.strengthPx },
+  // ペンの種類(pen / marker)と, 種類ごとに直前に使った色・太さ・不透明度.
+  penType: 'pen',
+  lastPen: { pen: { ...PEN_DEFAULTS.pen }, marker: { ...PEN_DEFAULTS.marker } },
+  // 開いている元画像のファイル(編集データへ埋め込むときに使う).
+  sourceBlob: null,
   selectedIndex: -1,
   converted: false,
   converting: false,

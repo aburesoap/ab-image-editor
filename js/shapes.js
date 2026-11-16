@@ -4,8 +4,9 @@ import { BADGE_MAX, TEXT_DEFAULTS, TEXT_INK_CENTER } from './constants.js';
 import { $ } from './dom.js';
 import { newObjectId, objects, state } from './state.js';
 import {
-  isBadge, isEffectType, isLineType, mapPointToCanvas, refWidth,
+  isBadge, isEffectType, isLineType, isPenType, mapPointToCanvas, refWidth,
 } from './geometry.js';
+import { drawPen } from './pen.js';
 import { fontStack } from './fonts.js';
 
 // 次に置く番号. 置いてある番号の最大値の次にする(1つも無ければ1).
@@ -318,6 +319,15 @@ function drawBadge(ctx, shape, place) {
 }
 
 export function drawShape(ctx, width, height, shape, cropRect) {
+  if (shape.type === 'paper') {
+    // 白地は, 切り抜き範囲によらず描画先の全体を覆う.
+    ctx.save();
+    ctx.globalAlpha = shape.opacity;
+    ctx.fillStyle = shape.fill;
+    ctx.fillRect(0, 0, width, height);
+    ctx.restore();
+    return;
+  }
   const mapped1 = mapPointToCanvas(shape.x1, shape.y1, width, height, cropRect);
   const mapped2 = mapPointToCanvas(shape.x2, shape.y2, width, height, cropRect);
   const centerX = (mapped1.x + mapped2.x) / 2;
@@ -361,6 +371,12 @@ export function drawShape(ctx, width, height, shape, cropRect) {
   ctx.lineCap = 'round';
   ctx.translate(centerX, centerY);
   ctx.rotate(rotation);
+
+  if (isPenType(type)) {
+    drawPen(ctx, shape, p1, p2, lineWidth);
+    ctx.restore();
+    return;
+  }
 
   if (isLineType(type)) {
     if (type === 'line') {
@@ -442,6 +458,9 @@ export function objectTypeLabel(type) {
     badge: '番号',
     blur: 'ぼかし',
     mosaic: 'モザイク',
+    pen: 'ペン',
+    marker: '蛍光ペン',
+    paper: '白地',
     text: 'テキスト',
   })[type] || '図形';
 }

@@ -1,6 +1,6 @@
 # プライバシーポリシー（iMage Editor Web 版）
 
-最終更新: 2026年11月16日（v2.2.0 時点）
+最終更新: 2026年11月16日（v2.3.0 時点）
 
 iMage Editor Web 版（以下「本サイト」）は, GitHub Pages で公開している画像編集・注釈ツールです. 開いた画像や編集内容は, ブラウザの中で処理し, サーバーへ送信しません. ただし, 本サイトを開くときの通信と, 外部サイトからの読み込みがあるため, 「端末の外へ一切通信しない」ものではありません.
 
@@ -21,19 +21,19 @@ iMage Editor Web 版（以下「本サイト」）は, GitHub Pages で公開し
 
 本サイトの設定（Content Security Policy）は, https の外部サイトからフォント・画像・スタイルを読み込むことを許可しています. 外部サイトから読み込むと, そのサイトに IPアドレスやブラウザの種類などが伝わります.
 
-v2.2.0 の時点で, 本サイトが外部サイトから読み込むものは, 次のフォントだけです. 本サイトを開いたとき, またはそのフォントのテキストを置いたときに読み込みます. 読み込み先には, IPアドレス, ブラウザの種類, 本サイトから読み込んだこと（参照元）などが伝わります. 開いた画像や, 入力した文字の内容は送られません（日本語のフォントは文字のまとまりごとに小分けで配られるため, どのまとまりを取得したかは読み込み先に伝わります）.
+v2.3.0 の時点で, 本サイトが外部サイトから読み込むものは, 次のフォントだけです. 本サイトを開いたとき, またはそのフォントのテキストを置いたときに読み込みます. 読み込み先には, IPアドレス, ブラウザの種類, 本サイトから読み込んだこと（参照元）などが伝わります. 開いた画像や, 入力した文字の内容は送られません（日本語のフォントは文字のまとまりごとに小分けで配られるため, どのまとまりを取得したかは読み込み先に伝わります）.
 
 | 読み込み先 | 運営 | 読み込むもの |
 |---|---|---|
 | `fonts.googleapis.com`, `fonts.gstatic.com` | Google（[Google Fonts のプライバシーに関する説明](https://developers.google.com/fonts/faq/privacy?hl=ja)） | IBM Plex Sans JP |
-| `cdn.jsdelivr.net` | jsDelivr（[プライバシーポリシー](https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net)） | IBM Plex Math, UDEV Gothic |
+| `cdn.jsdelivr.net` | jsDelivr（[プライバシーポリシー](https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net)） | IBM Plex Math |
 
 読み込み先を増やした場合は, この表に記載します. フォントを読み込めない場合は, 端末内のフォントで表示します. 外部のスクリプトは, 設定で読み込みを禁止しています.
 
 ## 端末に保存する情報
 
 * **最近使った色**: カラーピッカーで使った色（最大12色）を, ブラウザの保存領域（localStorage）に保存します. この情報は端末の外へ送信されず, ブラウザの「サイトデータの削除」で消えます
-* 画像や編集内容は, 利用者が「保存」「編集データを保存」を選んだときに, 利用者が指定したファイルとしてのみ保存されます
+* 画像や編集内容は, 利用者が「保存」「編集データを保存」を選んだときに, 利用者が指定したファイルとしてのみ保存されます. 「元画像を含む」で保存した編集データには, 開いた元画像がそのまま入ります. 人に渡すときはご注意ください
 
 ## 利用者の操作でのみ使う機能
 
@@ -54,7 +54,7 @@ v2.2.0 の時点で, 本サイトが外部サイトから読み込むものは, 
 
 # Privacy Policy (iMage Editor Web)
 
-Last updated: November 16, 2026 (as of v2.2.0)
+Last updated: November 16, 2026 (as of v2.3.0)
 
 iMage Editor Web ("the site") is an image editing and annotation tool published on GitHub Pages. Images you open and your edits are processed inside your browser and are never sent to any server. However, because the site itself is downloaded over the network and may load content from other sites, it is not a "no network at all" tool.
 
@@ -75,19 +75,19 @@ The site's files (HTML, scripts, icons, etc.) are served by GitHub Pages. As wit
 
 The site's Content Security Policy allows fonts, images, and stylesheets to be loaded from other sites over https. When such content is loaded, that site receives your IP address, browser type, and similar information.
 
-As of v2.2.0, the only content the site loads from other sites is the fonts below. They are loaded when you open the site, or when you place text that uses the font. The font host receives your IP address, browser type, and the fact that the request came from this site (the referrer). Your images and the text you type are not sent (Japanese fonts are served in small chunks of characters, so the host can see which chunks were requested).
+As of v2.3.0, the only content the site loads from other sites is the fonts below. They are loaded when you open the site, or when you place text that uses the font. The font host receives your IP address, browser type, and the fact that the request came from this site (the referrer). Your images and the text you type are not sent (Japanese fonts are served in small chunks of characters, so the host can see which chunks were requested).
 
 | Host | Operator | What is loaded |
 |---|---|---|
 | `fonts.googleapis.com`, `fonts.gstatic.com` | Google ([Google Fonts privacy FAQ](https://developers.google.com/fonts/faq/privacy)) | IBM Plex Sans JP |
-| `cdn.jsdelivr.net` | jsDelivr ([privacy policy](https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net)) | IBM Plex Math, UDEV Gothic |
+| `cdn.jsdelivr.net` | jsDelivr ([privacy policy](https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net)) | IBM Plex Math |
 
 If more sources are added, they will be listed in this table. If a font cannot be loaded, fonts installed on your device are used instead. Scripts from other sites are blocked by the policy.
 
 ## Information stored on your device
 
 * **Recent colors**: up to 12 colors used in the color picker are stored in the browser's local storage (localStorage). They never leave your device, and are removed when you clear the site's data
-* Images and edits are saved only as files you choose, when you use "Save" or "Save project data"
+* Images and edits are saved only as files you choose, when you use "Save" or "Save project data". Project data saved "with the original image" contains the original image as is, so take care when sharing it
 
 ## Features used only on your action
 

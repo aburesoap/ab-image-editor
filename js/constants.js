@@ -12,8 +12,11 @@ export const MIN_CROP = 0.03;
 export const HISTORY_LIMIT = 80;
 export const MAX_OBJECTS = 500;
 export const PROJECT_FORMAT = 'iMage-Editor-project';
-export const PROJECT_VERSION = 4;
-export const SHAPE_TYPES = ['rect', 'ellipse', 'triangle', 'line', 'arrow'];
+// 編集データの形式の版. v5 で図形の種類が増えた(角丸長方形・ひし形・星・吹き出し・太矢印・両矢印).
+export const PROJECT_VERSION = 5;
+export const SHAPE_TYPES = [
+  'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'line', 'arrow', 'arrow2',
+];
 export const SHAPE_STYLES = ['fill', 'stroke', 'window'];
 export const DITHER_METHODS = ['floyd', 'atkinson', 'ordered', 'none'];
 // 開ける画像の形式. ファイルの選択(index.html の accept)と揃える.

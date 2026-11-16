@@ -1,4 +1,4 @@
-// 画像を開く. ファイルの選択, 画面へのドラッグ&ドロップ, クリップボードからの貼り付けに対応する.
+// 画像を開く. ファイルの選択, 画面へのドラッグ&ドロップ, クリップボードからの貼り付け(Ctrl+V, 貼り付けボタン)に対応する.
 // 編集データ(.json)をドロップした場合は, 編集データとして読み込む.
 
 import { FULL_CROP, IMAGE_TYPES, TOOL_BUTTONS } from './constants.js';
@@ -131,3 +131,33 @@ document.addEventListener('paste', (event) => {
   event.preventDefault();
   openImage(item.getAsFile(), '貼り付けた画像', '貼り付け');
 });
+
+// ---- 貼り付けボタン ----
+// キーボードの無いスマホやタブレットでも貼り付けられるよう, クリップボードを読み取って開く.
+// ブラウザによっては, 読み取ってよいかの確認や「ペースト」の表示が出る.
+export async function pasteFromClipboard() {
+  if (!navigator.clipboard?.read) {
+    setStatus('このブラウザでは, ボタンからの貼り付けに対応していません. Ctrl+V で貼り付けてください');
+    return;
+  }
+  let items;
+  try {
+    items = await navigator.clipboard.read();
+  } catch (error) {
+    setStatus(error?.name === 'NotAllowedError'
+      ? 'クリップボードの読み取りが許可されませんでした. ブラウザの設定を確かめてください'
+      : 'クリップボードを読み取れませんでした');
+    return;
+  }
+  for (const item of items) {
+    const type = item.types.find((entry) => IMAGE_TYPES.includes(entry));
+    if (!type) continue;
+    const blob = await item.getType(type);
+    // 読み取った画像に種類が付いていないブラウザがあるため, 種類を付け直す.
+    openImage(blob.type ? blob : new Blob([blob], { type }), '貼り付けた画像', '貼り付け');
+    return;
+  }
+  setStatus('クリップボードに画像がありません. 画像をコピーしてから押してください');
+}
+
+$('pasteImage').addEventListener('click', pasteFromClipboard);

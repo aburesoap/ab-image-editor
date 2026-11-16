@@ -1,6 +1,6 @@
 # プライバシーポリシー（iMage Editor Web 版）
 
-最終更新: 2026年11月16日（v2.0.0 時点）
+最終更新: 2026年11月16日（v2.1.0 時点）
 
 iMage Editor Web 版（以下「本サイト」）は, GitHub Pages で公開している画像編集・注釈ツールです. 開いた画像や編集内容は, ブラウザの中で処理し, サーバーへ送信しません. ただし, 本サイトを開くときの通信と, 外部サイトからの読み込みがあるため, 「端末の外へ一切通信しない」ものではありません.
 
@@ -21,7 +21,7 @@ iMage Editor Web 版（以下「本サイト」）は, GitHub Pages で公開し
 
 本サイトの設定（Content Security Policy）は, https の外部サイトからフォント・画像・スタイルを読み込むことを許可しています. 外部サイトから読み込むと, そのサイトに IPアドレスやブラウザの種類などが伝わります.
 
-v2.0.0 の時点で, 本サイトが外部サイトから読み込むものはありません（フォントはすべて本サイトから配信しています）. 外部サイトから読み込む機能を加えた場合は, 読み込み先をここに記載します. 外部のスクリプトは, 設定で読み込みを禁止しています.
+v2.1.0 の時点で, 本サイトが外部サイトから読み込むものはありません（フォントはすべて本サイトから配信しています）. 外部サイトから読み込む機能を加えた場合は, 読み込み先をここに記載します. 外部のスクリプトは, 設定で読み込みを禁止しています.
 
 ## 端末に保存する情報
 
@@ -33,7 +33,7 @@ v2.0.0 の時点で, 本サイトが外部サイトから読み込むものは�
 次の機能は, 利用者がその操作をしたときにだけ働きます.
 
 * **ファイルの読み込み**: 利用者が選んだファイル, 画面へドロップしたファイルだけを読み込みます
-* **クリップボード**: 「コピー」を押したときに仕上がりの画像を書き込み, Ctrl+V で貼り付けたときに貼り付けられた画像を読み込みます. それ以外のときにクリップボードを読むことはありません
+* **クリップボード**: 「コピー」を押したときに仕上がりの画像を書き込み, Ctrl+V で貼り付けたとき, または「貼り付け」ボタンを押したときに画像を読み込みます. それ以外のときにクリップボードを読むことはありません
 * **スポイト**: スポイトのボタンを押したときに, 利用者が画面上で選んだ1点の色だけを取得します
 
 ## 変更
@@ -48,7 +48,7 @@ v2.0.0 の時点で, 本サイトが外部サイトから読み込むものは�
 
 # Privacy Policy (iMage Editor Web)
 
-Last updated: November 16, 2026 (as of v2.0.0)
+Last updated: November 16, 2026 (as of v2.1.0)
 
 iMage Editor Web ("the site") is an image editing and annotation tool published on GitHub Pages. Images you open and your edits are processed inside your browser and are never sent to any server. However, because the site itself is downloaded over the network and may load content from other sites, it is not a "no network at all" tool.
 
@@ -69,7 +69,7 @@ The site's files (HTML, scripts, fonts, icons, etc.) are served by GitHub Pages.
 
 The site's Content Security Policy allows fonts, images, and stylesheets to be loaded from other sites over https. When such content is loaded, that site receives your IP address, browser type, and similar information.
 
-As of v2.0.0, the site loads nothing from other sites (all fonts are served by the site itself). If a feature that loads content from other sites is added, the sources will be listed here. Scripts from other sites are blocked by the policy.
+As of v2.1.0, the site loads nothing from other sites (all fonts are served by the site itself). If a feature that loads content from other sites is added, the sources will be listed here. Scripts from other sites are blocked by the policy.
 
 ## Information stored on your device
 
@@ -79,7 +79,7 @@ As of v2.0.0, the site loads nothing from other sites (all fonts are served by t
 ## Features used only on your action
 
 * **Opening files**: only files you select or drop onto the page are read
-* **Clipboard**: the finished image is written when you press "Copy", and a pasted image is read when you press Ctrl+V. The clipboard is not read at any other time
+* **Clipboard**: the finished image is written when you press "Copy", and an image is read when you press Ctrl+V or the "Paste" button. The clipboard is not read at any other time
 * **Eyedropper**: only the single on-screen color you pick is read, when you press the eyedropper button
 
 ## Changes

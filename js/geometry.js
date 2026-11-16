@@ -4,7 +4,9 @@ import { UI_REFERENCE_SIDE, previewSide } from './constants.js';
 import { original } from './dom.js';
 import { state } from './state.js';
 
-export const isLineType = (type) => type === 'line' || type === 'arrow';
+export const isLineType = (type) => type === 'line' || type === 'arrow' || type === 'arrow2';
+// 上下・左右が対称でない図形. 画像を90°回すときは, 枠の縦横を保ったまま角度を足す(rotate.js).
+export const isOrientedType = (type) => ['triangle', 'star', 'balloon', 'blockarrow'].includes(type);
 export const isText = (obj) => obj.type === 'text';
 
 export function getDimensions(width, height, maxSide) {

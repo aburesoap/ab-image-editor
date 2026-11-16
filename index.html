@@ -15,8 +15,9 @@
 <body>
 <div class="app">
 <header class="topbar">
-<div class="brand"><div class="brand-mark">iM</div><div class="brand-text"><b>iMage Editor</b> <span class="ver">v2.0.0</span></div></div>
+<div class="brand"><div class="brand-mark">iM</div><div class="brand-text"><b>iMage Editor</b></div></div>
 <label class="btn" for="file">＋ 開く</label><input id="file" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif" hidden>
+<button id="pasteImage" class="ghost" title="クリップボードの画像を貼り付けて開く（Ctrl+V）">⎘ 貼り付け</button>
 <div class="spacer"></div>
 <div class="history-buttons">
 <button id="undo" class="ghost" disabled title="元に戻す（Ctrl+Z）">↶<span class="lbl"> 元に戻す</span></button>
@@ -43,11 +44,23 @@
 <div id="optShape" class="opt-group" hidden>
 <label for="shapeType">種類</label>
 <select id="shapeType">
+<optgroup label="図形">
 <option value="rect">長方形</option>
+<option value="roundrect">角丸長方形</option>
 <option value="ellipse">楕円・円</option>
 <option value="triangle">三角形</option>
+<option value="diamond">ひし形</option>
+<option value="star">星</option>
+</optgroup>
+<optgroup label="注釈">
+<option value="balloon">吹き出し</option>
+<option value="blockarrow">太矢印</option>
+</optgroup>
+<optgroup label="線">
 <option value="line">直線</option>
 <option value="arrow">矢印</option>
+<option value="arrow2">両矢印</option>
+</optgroup>
 </select>
 <label for="shapeStyle">描画方法</label>
 <select id="shapeStyle">

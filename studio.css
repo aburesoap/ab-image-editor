@@ -124,14 +124,6 @@ body {
   letter-spacing: -0.5px;
 }
 
-.ver {
-  font: 700 10px var(--font-num);
-  color: #fff;
-  background: var(--red);
-  padding: 2px 5px;
-  vertical-align: middle;
-}
-
 .spacer {
   flex: 1;
 }

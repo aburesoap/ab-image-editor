@@ -255,7 +255,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 4);
+  assert.equal(saved.version, 5);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -570,4 +570,139 @@ test('CSP は外部サイトの画像とフォントを許可し, 外部のス�
   assert.ok(result.violations.some((directive) => directive.startsWith('script-src')), 'スクリプトは CSP で止められる');
   // 外部のスクリプトを止めたときのコンソールのエラーは, 意図どおりなので除く.
   errors = errors.filter((message) => !message.includes('Content Security Policy'));
+});
+
+// ---- v2.1.0 ----
+// 仕上がりの複数の画素を読む. 位置は画像上の割合(0〜1).
+async function resultPixels(points) {
+  await page.click('#viewResult');
+  await page.waitForFunction(() => !document.getElementById('result').hidden);
+  return page.evaluate((list) => {
+    const canvas = document.getElementById('result');
+    const ctx = canvas.getContext('2d');
+    return list.map(([x, y]) => [...ctx.getImageData(Math.floor(canvas.width * x), Math.floor(canvas.height * y), 1, 1).data.slice(0, 3)]);
+  }, points);
+}
+
+async function drawShapeOf(type, from, to) {
+  await page.keyboard.press('r');
+  await page.selectOption('#shapeType', type);
+  const a = await at(...from);
+  const b = await at(...to);
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+}
+
+async function setRange(id, value) {
+  await page.$eval(`#${id}`, (el, v) => {
+    el.value = String(v);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }, value);
+}
+
+const BLACK = [0, 0, 0];
+
+test('画面に版の番号を表示しない', async () => {
+  assert.equal(await page.locator('.ver').count(), 0);
+  assert.doesNotMatch(await page.textContent('.topbar'), /v\d+\.\d+/);
+});
+
+// 枠(0.2, 0.2)〜(0.8, 0.8)に描いたときの, 塗られる位置と塗られない位置(枠の中の割合).
+const SHAPE_CASES = [
+  ['roundrect', '角丸長方形', [[0.5, 0.5], [0.05, 0.5], [0.5, 0.95]], [[0.01, 0.01], [0.99, 0.99]]],
+  ['diamond', 'ひし形', [[0.5, 0.5], [0.5, 0.1], [0.9, 0.5]], [[0.1, 0.1], [0.9, 0.9]]],
+  ['star', '星', [[0.5, 0.5], [0.5, 0.1], [0.25, 0.4]], [[0.1, 0.1], [0.5, 0.9], [0.9, 0.9]]],
+  ['balloon', '吹き出し', [[0.5, 0.4], [0.23, 0.9]], [[0.8, 0.9], [0.05, 0.95]]],
+  ['blockarrow', '太矢印', [[0.1, 0.5], [0.5, 0.5], [0.7, 0.2], [0.95, 0.5]], [[0.3, 0.1], [0.3, 0.9], [0.9, 0.1]]],
+];
+for (const [type, label, inside, outside] of SHAPE_CASES) {
+  test(`図形「${label}」を描ける. 内側は塗られ, 形の外は塗られない`, async () => {
+    await drawShapeOf(type, [0.2, 0.2], [0.8, 0.8]);
+    assert.deepEqual(await layerNames(), [`${label}・塗り`]);
+    const toImage = ([x, y]) => [0.2 + x * 0.6, 0.2 + y * 0.6];
+    const pixels = await resultPixels([...inside, ...outside].map(toImage));
+    pixels.slice(0, inside.length).forEach((pixel, i) => assert.ok(near(pixel, DEFAULT_FILL), `${inside[i]} は塗られる (実際: ${pixel})`));
+    pixels.slice(inside.length).forEach((pixel, i) => assert.ok(near(pixel, BLACK), `${outside[i]} は塗られない (実際: ${pixel})`));
+  });
+}
+
+test('矢印の線は, 矢じりの先から突き出さない. 半透明でも重なりが濃くならない', async () => {
+  // 白い矢印を, 画像の左から右へ(先端は x = 280px).
+  await drawShapeOf('arrow', [0.2, 0.5], [0.7, 0.5]);
+  await setRange('editLineWidth', 30);
+  await setRange('editOpacity', 50);
+  const xs = [];
+  for (let x = 120; x <= 274; x += 2) xs.push(x);
+  const beyond = [283, 286, 290, 295];
+  const pixels = await resultPixels([...xs, ...beyond].map((x) => [(x + 0.5) / 400, 150.5 / 300]));
+  const axis = pixels.slice(0, xs.length);
+  // 軸の上は, 軸の部分も矢じりの部分も, 白の50%(約128)で同じ濃さ.
+  axis.forEach((pixel, i) => assert.ok(Math.abs(pixel[0] - 128) <= 3, `x = ${xs[i]}px は半透明の白 (実際: ${pixel})`));
+  pixels.slice(xs.length).forEach((pixel, i) => assert.ok(near(pixel, BLACK), `先端より先(x = ${beyond[i]}px)は何も描かれない (実際: ${pixel})`));
+});
+
+test('両矢印は, 両端に矢じりが付く', async () => {
+  await drawShapeOf('arrow2', [0.2, 0.5], [0.8, 0.5]);
+  assert.deepEqual(await layerNames(), ['両矢印']);
+  await setRange('editLineWidth', 4);
+  // 線(太さ4px)より外側でも, 両端の近く(先端から12px)は矢じり(長さ16px)で塗られている.
+  const pixels = await resultPixels([[92.5 / 400, 155.5 / 300], [307.5 / 400, 155.5 / 300], [200.5 / 400, 155.5 / 300]]);
+  assert.ok(pixels[0][0] > 200, `左端に矢じり (実際: ${pixels[0]})`);
+  assert.ok(pixels[1][0] > 200, `右端に矢じり (実際: ${pixels[1]})`);
+  assert.ok(near(pixels[2], BLACK), `中ほどは線の太さだけ (実際: ${pixels[2]})`);
+});
+
+test('星・吹き出し・太矢印は, 画像と一緒に回すと角度が90°変わる. ひし形は変わらない', async () => {
+  await drawShapeOf('star', [0.1, 0.1], [0.3, 0.4]);
+  await page.keyboard.press('Escape');
+  await drawShapeOf('diamond', [0.5, 0.5], [0.7, 0.8]);
+  await page.keyboard.press('c');
+  await page.click('#rotateRight');
+  await page.keyboard.press('v');
+  const angleOf = async (row) => {
+    await page.locator('#layerList .layer-main').nth(row).click();
+    return page.inputValue('#editAngle');
+  };
+  assert.equal(await angleOf(1), '90', '星');
+  assert.equal(await angleOf(0), '0', 'ひし形');
+});
+
+test('新しい図形は, 編集データ(形式 v5)に保存され, 読み込むと戻る', async () => {
+  await drawShapeOf('balloon', [0.1, 0.1], [0.4, 0.4]);
+  await page.keyboard.press('Escape');
+  await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
+  const file = await saveProjectToFile();
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 5);
+  assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['balloon', 'arrow2']);
+  await page.keyboard.press('Escape');
+  await page.click('#clearObjects');
+  assert.equal(await objectCount(), 0);
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.deepEqual(await layerNames(), ['両矢印', '吹き出し・塗り']);
+});
+
+test('貼り付けボタンで, クリップボードの画像を開ける', async () => {
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120;
+    canvas.height = 80;
+    canvas.getContext('2d').fillRect(0, 0, 120, 80);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  });
+  await page.click('#pasteImage');
+  await page.waitForFunction(() => document.getElementById('original').width === 120);
+  assert.match(await status(), /貼り付け完了：120 × 80 px/);
+});
+
+test('貼り付けボタンは, クリップボードに画像が無ければ案内を出す', async () => {
+  await page.evaluate(() => navigator.clipboard.writeText('文字だけ'));
+  await page.click('#pasteImage');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('クリップボードに画像がありません'));
+  assert.equal(await page.$eval('#original', (el) => el.width), 400, '画像はそのまま');
 });

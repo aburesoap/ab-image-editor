@@ -2,7 +2,7 @@
 // 図形・テキスト・切り抜き範囲も, 画像と一緒に回す.
 
 import { objects, state } from './state.js';
-import { isText, normalizeAngle, sourceSize, turnPoint } from './geometry.js';
+import { isOrientedType, isText, normalizeAngle, sourceSize, turnPoint } from './geometry.js';
 import { setStatus } from './dom.js';
 import { zoomFit } from './stage.js';
 import { updateSelectionInspector } from './inspector.js';
@@ -21,8 +21,8 @@ function turnObject(obj, dir, W, H) {
     return;
   }
   obj.lineWidth = Number(obj.lineWidth || 0) * widthRatio;
-  if (obj.type === 'triangle') {
-    // 三角形は上下が対称でないため, 枠の縦横は保ったまま, 中心を移して角度を90°足す.
+  if (isOrientedType(obj.type)) {
+    // 三角形・星・吹き出し・太矢印は上下や左右が対称でないため, 枠の縦横は保ったまま, 中心を移して角度を90°足す.
     const center = turnPoint((obj.x1 + obj.x2) / 2, (obj.y1 + obj.y2) / 2, dir);
     const halfX = ((obj.x2 - obj.x1) / 2) * (W / H);
     const halfY = ((obj.y2 - obj.y1) / 2) * (H / W);
@@ -33,7 +33,7 @@ function turnObject(obj, dir, W, H) {
     obj.rotation = normalizeAngle(Number(obj.rotation || 0) + 90 * dir);
     return;
   }
-  // 長方形・楕円・直線・矢印は, 両端(対角)の点を回せば, 角度はそのままで同じ見た目になる.
+  // 長方形・角丸長方形・楕円・ひし形・直線・矢印は, 両端(対角)の点を回せば, 角度はそのままで同じ見た目になる.
   const a = turnPoint(obj.x1, obj.y1, dir);
   const b = turnPoint(obj.x2, obj.y2, dir);
   obj.x1 = a.x;

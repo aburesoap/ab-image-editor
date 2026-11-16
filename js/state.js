@@ -1,5 +1,7 @@
 // 共有の状態. 複数のモジュールから書き換えるため, 1つのオブジェクトにまとめている.
-import { FULL_CROP, SHAPE_DEFAULTS, TEXT_DEFAULTS } from './constants.js';
+import {
+  BADGE_DEFAULTS, EFFECT_DEFAULTS, FULL_CROP, SHAPE_DEFAULTS, TEXT_DEFAULTS,
+} from './constants.js';
 
 // 状態. 値を代入し直すものは, このオブジェクトのプロパティとして持つ.
 export const state = {
@@ -23,8 +25,12 @@ export const state = {
     sizePx: TEXT_DEFAULTS.sizePx,
     font: TEXT_DEFAULTS.font,
     weight: TEXT_DEFAULTS.weight,
+    outline: TEXT_DEFAULTS.outline,
+    outlineWidthPx: TEXT_DEFAULTS.outlineWidthPx,
     opacity: 1,
   },
+  lastBadge: { fill: BADGE_DEFAULTS.fill, stroke: BADGE_DEFAULTS.stroke },
+  lastEffect: { strengthPx: EFFECT_DEFAULTS.strengthPx },
   selectedIndex: -1,
   converted: false,
   converting: false,

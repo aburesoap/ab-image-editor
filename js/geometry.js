@@ -8,6 +8,10 @@ export const isLineType = (type) => type === 'line' || type === 'arrow' || type 
 // 上下・左右が対称でない図形. 画像を90°回すときは, 枠の縦横を保ったまま角度を足す(rotate.js).
 export const isOrientedType = (type) => ['triangle', 'star', 'balloon', 'blockarrow'].includes(type);
 export const isText = (obj) => obj.type === 'text';
+// 下にあるものを加工して隠す範囲(ぼかし・モザイク). 色や描画方法を持たない.
+export const isEffectType = (type) => type === 'blur' || type === 'mosaic';
+// 番号(丸の中に数字). 塗りつぶしの楕円として描き, 数字を重ねる.
+export const isBadge = (obj) => obj.type === 'badge';
 
 export function getDimensions(width, height, maxSide) {
   const scale = Math.min(1, maxSide / Math.max(width, height));

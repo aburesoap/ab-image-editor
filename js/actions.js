@@ -3,13 +3,21 @@
 import { MAX_OBJECTS, TOOL_BUTTONS, TOOL_HINTS } from './constants.js';
 import { $, original, setStatus } from './dom.js';
 import { newObjectId, objects, selectedObject, state } from './state.js';
-import { moveObject } from './geometry.js';
-import { syncWindowStyleOption } from './shapes.js';
+import { isBadge, isEffectType, moveObject } from './geometry.js';
+import { nextBadgeNumber, syncWindowStyleOption } from './shapes.js';
 import { drawEditor } from './render.js';
 import { updateStageView } from './stage.js';
 import { updateSelectionInspector } from './inspector.js';
 import { convertImage } from './convert.js';
 import { commitChange, pushHistory } from './history.js';
+
+// 操作の案内. 図形の道具では, 番号とぼかし・モザイクの置き方が違うので, 種類に合わせる.
+function toolHint() {
+  if (state.tool !== 'shape') return TOOL_HINTS[state.tool];
+  if (state.shapeType === 'badge') return TOOL_HINTS.badge;
+  if (isEffectType(state.shapeType)) return TOOL_HINTS.effect;
+  return TOOL_HINTS.shape;
+}
 
 // 選んでいる道具に合わせて, 道具の強調, オプションバー, 操作の案内, カーソルを切り替える.
 export function updateToolUI() {
@@ -20,7 +28,7 @@ export function updateToolUI() {
   $('optCrop').hidden = state.tool !== 'crop';
   $('optShape').hidden = state.tool !== 'shape';
   $('optLock').hidden = state.tool !== 'shape' && state.tool !== 'text';
-  $('toolHint').textContent = TOOL_HINTS[state.tool];
+  $('toolHint').textContent = toolHint();
   original.className = `tool-${state.tool}`;
 }
 
@@ -71,6 +79,9 @@ export function onTabClick(name) {
 // 新規の図形の種類に合わせて, 描画方法の選択肢を整える.
 export function syncShapeOptions() {
   syncWindowStyleOption($('shapeStyle'), state.shapeType);
+  // 番号とぼかし・モザイクには, 描画方法が無い.
+  $('shapeStyle').disabled = state.shapeType === 'badge' || isEffectType(state.shapeType);
+  $('toolHint').textContent = toolHint();
 }
 
 // オブジェクトを, 重ね順の別の位置(添字)へ移す. 選択は同じオブジェクトに付いたまま動く.
@@ -153,6 +164,8 @@ export function duplicateSelected() {
   if (!source || objects.length >= MAX_OBJECTS) return;
   // 複製したものは, 隠れていたりロックされていたりしても, 見えて動かせる状態にする.
   const copy = { ...source, id: newObjectId(), hidden: false, locked: false };
+  // 番号を複製したときは, 次の番号にする.
+  if (isBadge(copy)) copy.number = nextBadgeNumber();
   moveObject(copy, 0.02, 0.02);
   objects.splice(state.selectedIndex + 1, 0, copy);
   state.selectedIndex += 1;

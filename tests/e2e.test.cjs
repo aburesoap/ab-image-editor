@@ -274,7 +274,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 5);
+  assert.equal(saved.version, 6);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -692,13 +692,13 @@ test('星・吹き出し・太矢印は, 画像と一緒に回すと角度が90�
   assert.equal(await angleOf(0), '0', 'ひし形');
 });
 
-test('新しい図形は, 編集データ(形式 v5)に保存され, 読み込むと戻る', async () => {
+test('新しい図形は, 編集データに保存され, 読み込むと戻る', async () => {
   await drawShapeOf('balloon', [0.1, 0.1], [0.4, 0.4]);
   await page.keyboard.press('Escape');
   await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 5);
+  assert.equal(saved.version, 6);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['balloon', 'arrow2']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -840,4 +840,130 @@ test('図形とテキストを別々に持つ古い形式の編集データは, 
   await page.setInputFiles('#loadProject', file);
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込めませんでした'));
   assert.equal(await objectCount(), 0);
+});
+
+// ---- v2.2.0 ----
+// 仕上がりの1行(y)のうち, 指定した x の画素を読む. 位置は px.
+async function resultRow(xs, y) {
+  return resultPixels(xs.map((x) => [(x + 0.5) / 400, (y + 0.5) / 300]));
+}
+
+test('スポイトのボタンは無い', async () => {
+  await drawRect([0.1, 0.1], [0.3, 0.3]);
+  await page.click('#editFill');
+  assert.equal(await page.isVisible('#colorPopover'), true);
+  assert.equal(await page.locator('#cpEyedropper').count(), 0);
+});
+
+test('モザイクは, 範囲の中を「強さ」の大きさのマスで塗り分ける. 範囲の外は変わらない', async () => {
+  // 左上の赤い四角(0〜50px)にかかるよう, 0〜100px の範囲にモザイク. 1マス40px.
+  await drawShapeOf('mosaic', [0, 0], [0.25, 1 / 3]);
+  assert.deepEqual(await layerNames(), ['モザイク']);
+  await setRange('editStrength', 40);
+  const [a, b, c, d, outside] = await resultRow([5, 35, 45, 75, 150], 20);
+  assert.deepEqual(a, b, '同じマスの中は同じ色');
+  assert.deepEqual(c, d, '同じマスの中は同じ色');
+  assert.ok(a[0] > 200, `赤だけのマスは赤 (実際: ${a})`);
+  assert.ok(c[0] > 20 && c[0] < 120, `赤が一部だけのマスは, 暗い赤 (実際: ${c})`);
+  assert.ok(near(outside, BLACK), `範囲の外は黒のまま (実際: ${outside})`);
+});
+
+test('ぼかしは, 範囲の中だけをにじませる', async () => {
+  await drawShapeOf('blur', [0, 0], [0.25, 1 / 3]);
+  await setRange('editStrength', 10);
+  // 赤い四角の右の縁(x = 50px)の外側は, にじんで少し赤くなる. 範囲の外(x = 150px)は黒のまま.
+  const [edge, inside, outside] = await resultRow([54, 20, 150], 25);
+  assert.ok(edge[0] > 20 && edge[0] < 230, `縁はにじむ (実際: ${edge})`);
+  assert.ok(inside[0] > 200, `赤の中ほどは赤 (実際: ${inside})`);
+  assert.ok(near(outside, BLACK), `範囲の外 (実際: ${outside})`);
+});
+
+test('ぼかし・モザイクは背面のものだけを隠し, 前面の図形はそのまま描く', async () => {
+  await drawShapeOf('mosaic', [0.1, 0.1], [0.9, 0.9]);
+  await setRange('editStrength', 60);
+  await page.keyboard.press('Escape');
+  await drawShapeOf('rect', [0.4, 0.4], [0.6, 0.6]);
+  assert.ok(near(await resultPixel(0.5, 0.5), DEFAULT_FILL));
+  // 色・描画方法の欄は出さず, 強さの欄だけを出す.
+  await page.locator('#layerList .layer-main').nth(1).click();
+  assert.equal(await page.isVisible('#effectFields'), true);
+  assert.equal(await page.isVisible('#shapeFields'), false);
+});
+
+test('番号はクリックで置け, 置くたびに1つずつ増える. 番号は変えられ, 次はその続きになる', async () => {
+  await page.keyboard.press('r');
+  await page.selectOption('#shapeType', 'badge');
+  assert.match(await page.textContent('#toolHint'), /クリックで番号を配置/);
+  await page.check('#toolLock');
+  for (const [fx, fy] of [[0.3, 0.5], [0.5, 0.5]]) {
+    const p = await at(fx, fy);
+    await page.mouse.click(p.x, p.y);
+  }
+  assert.deepEqual(await layerNames(), ['番号 2', '番号 1']);
+  // 丸の色は既定で赤. 数字(白)から外れた丸の中を読む(直径28px).
+  const [ring] = await resultRow([0.3 * 400 - 10], 150);
+  assert.ok(near(ring, [0xd8, 0x3b, 0x3b]), `丸の色 (実際: ${ring})`);
+  const [digit] = await resultRow([0.3 * 400], 150);
+  assert.ok(digit[1] > 120, `中央には白い数字 (実際: ${digit})`);
+
+  await page.keyboard.press('v');
+  await page.locator('#layerList .layer-main').nth(0).click();
+  assert.equal(await page.isVisible('#badgeFields'), true);
+  assert.equal(await page.textContent('#editFillLabel'), '丸の色');
+  await page.fill('#editBadgeNumber', '7');
+  await page.locator('#editBadgeNumber').dispatchEvent('change');
+  assert.deepEqual(await layerNames(), ['番号 7', '番号 1']);
+  await page.click('#duplicateObject');
+  assert.deepEqual(await layerNames(), ['番号 8', '番号 7', '番号 1']);
+});
+
+test('テキストに縁取りを付けられる. 縁取りの分だけ枠が広がる', async () => {
+  await placeText([0.5, 0.5], 'ABC');
+  await page.check('#editTextTransparent');
+  const widthBefore = await page.$eval('#editTextOutlineWidthVal', (el) => el.textContent);
+  assert.equal(widthBefore, 'なし');
+  const redCount = async () => {
+    await makeResult();
+    return page.evaluate(() => {
+      const canvas = document.getElementById('result');
+      const data = canvas.getContext('2d').getImageData(100, 0, 300, 300).data;
+      let count = 0;
+      for (let i = 0; i < data.length; i += 4) if (data[i] > 150 && data[i + 1] < 80 && data[i + 2] < 80) count += 1;
+      return count;
+    });
+  };
+  assert.equal(await redCount(), 0);
+  await page.click('#editTextOutline');
+  await page.fill('#cpHex', 'ff0000');
+  await page.press('#cpHex', 'Enter');
+  await page.keyboard.press('Escape');
+  await setRange('editTextOutlineWidth', 4);
+  assert.equal(await page.textContent('#editTextOutlineWidthVal'), '4 px');
+  assert.ok(await redCount() > 50, '赤い縁取りが描かれる');
+});
+
+test('番号・ぼかし・縁取りは, 編集データ(形式 v6)に保存され, 読み込むと戻る', async () => {
+  await drawShapeOf('blur', [0.1, 0.1], [0.3, 0.3]);
+  await setRange('editStrength', 20);
+  await page.keyboard.press('Escape');
+  await drawShapeOf('badge', [0.6, 0.6], [0.7, 0.7]);
+  await page.keyboard.press('Escape');
+  await placeText([0.5, 0.2], '縁');
+  await setRange('editTextOutlineWidth', 3);
+  const file = await saveProjectToFile();
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 6);
+  const [blur, badge, text] = saved.document.objects;
+  assert.equal(Math.round(blur.strength * 400), 20);
+  assert.equal(badge.number, 1);
+  assert.equal(Math.round(text.outlineWidth * 400), 3);
+  await page.keyboard.press('Escape');
+  await page.click('#clearObjects');
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.deepEqual(await layerNames(), ['縁', '番号 1', 'ぼかし']);
+  await page.locator('#layerList .layer-main').nth(0).click();
+  assert.equal(await page.inputValue('#editTextOutlineWidth'), '3');
+  await page.locator('#layerList .layer-main').nth(2).click();
+  assert.equal(await page.inputValue('#editStrength'), '20');
 });

@@ -20,7 +20,6 @@ const hue = $('cpHue');
 const hexInput = $('cpHex');
 const oldSwatch = $('cpOld');
 const newSwatch = $('cpNew');
-const eyedropper = $('cpEyedropper');
 
 // 開いている色の欄と, 選択中の色(色相・彩度・明度). 彩度0でも色相を失わないよう, 16進数とは別に持つ.
 const picker = { anchor: null, initial: '', h: 0, s: 0, v: 0, dragging: false };
@@ -186,7 +185,7 @@ function applyHsv(commit) {
   if (commit) emit('change');
 }
 
-// 16進数の色をそのまま反映する(見本・カラーコード・スポイト).
+// 16進数の色をそのまま反映する(見本・カラーコード).
 function applyHex(hex, commit) {
   if (!picker.anchor || !hex) return;
   const hsv = rgbToHsv(hexToRgb(hex));
@@ -298,22 +297,6 @@ pop.addEventListener('click', (event) => {
   if (swatch) applyHex(normalizeHex(swatch.dataset.color), true);
 });
 oldSwatch.addEventListener('click', () => applyHex(picker.initial, true));
-
-// スポイト(EyeDropper)は, 対応しているブラウザでだけ表示する.
-if (typeof window.EyeDropper === 'function') {
-  eyedropper.hidden = false;
-  eyedropper.addEventListener('click', async () => {
-    const anchor = picker.anchor;
-    try {
-      const { sRGBHex } = await new window.EyeDropper().open();
-      const match = /^rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(sRGBHex);
-      const hex = match ? rgbToHex(match.slice(1, 4).map(Number)) : normalizeHex(sRGBHex);
-      if (anchor && picker.anchor === anchor) applyHex(hex, true);
-    } catch {
-      // 取り消された場合は何もしない.
-    }
-  });
-}
 
 // Esc で閉じる. 窓の中のキー操作は, 道具の切り替えなどのショートカットへ渡さない.
 pop.addEventListener('keydown', (event) => {

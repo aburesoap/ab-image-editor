@@ -61,7 +61,7 @@ function hitTestObject(obj, point, k) {
   }
   const halfW = Math.max(MIN_SHAPE_SIDE * k, frame.hx);
   const halfH = Math.max(MIN_SHAPE_SIDE * k, frame.hy);
-  if (obj.type === 'ellipse') {
+  if (obj.type === 'ellipse' || obj.type === 'badge') {
     const rx = halfW + tolerance;
     const ry = halfH + tolerance;
     return (local.x * local.x) / (rx * rx) + (local.y * local.y) / (ry * ry) <= 1;

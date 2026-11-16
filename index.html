@@ -57,6 +57,7 @@
 <option value="star">星</option>
 </optgroup>
 <optgroup label="注釈">
+<option value="badge">番号（①②③）</option>
 <option value="balloon">吹き出し</option>
 <option value="blockarrow">太矢印</option>
 </optgroup>
@@ -64,6 +65,10 @@
 <option value="line">直線</option>
 <option value="arrow">矢印</option>
 <option value="arrow2">両矢印</option>
+</optgroup>
+<optgroup label="隠す">
+<option value="mosaic">モザイク</option>
+<option value="blur">ぼかし</option>
 </optgroup>
 </select>
 <label for="shapeStyle">描画方法</label>
@@ -143,6 +148,16 @@
 </div>
 </div>
 <label class="check-label"><input id="editTextTransparent" type="checkbox"> 背景を透明にする</label>
+<div class="field-row">
+<div>
+<label for="editTextOutline">縁取りの色</label>
+<button id="editTextOutline" value="#000000"></button>
+</div>
+<div>
+<label for="editTextOutlineWidth">縁取りの太さ <span id="editTextOutlineWidthVal" class="value">なし</span></label>
+<input id="editTextOutlineWidth" type="range" min="0" max="20" value="0">
+</div>
+</div>
 <label for="editTextSize">文字サイズ <span id="editTextSizeVal" class="value">24 px</span></label>
 <input id="editTextSize" type="range" min="8" max="200" value="24">
 <div class="field-row">
@@ -159,14 +174,19 @@
 <div id="shapeFields">
 <div class="field-row">
 <div>
-<label for="editFill">塗り色</label>
+<label id="editFillLabel" for="editFill">塗り色</label>
 <button id="editFill" value="#f4c95d"></button>
 </div>
 <div>
-<label for="editStroke">線の色</label>
+<label id="editStrokeLabel" for="editStroke">線の色</label>
 <button id="editStroke" value="#ffffff"></button>
 </div>
 </div>
+<div id="badgeFields">
+<label for="editBadgeNumber">番号</label>
+<input id="editBadgeNumber" class="number-input" type="number" min="0" max="999" step="1" value="1">
+</div>
+<div id="strokeFields">
 <label for="editStyle">描画方法</label>
 <select id="editStyle">
 <option value="fill">塗りつぶし</option>
@@ -175,6 +195,12 @@
 </select>
 <label for="editLineWidth">線の太さ <span id="editLineWidthVal" class="value">4 px</span></label>
 <input id="editLineWidth" type="range" min="1" max="80" value="4">
+</div>
+</div>
+<div id="effectFields">
+<label for="editStrength">強さ <span id="editStrengthVal" class="value">12 px</span></label>
+<input id="editStrength" type="range" min="2" max="60" value="12">
+<p class="setting-note">ぼかしは, 弱いと文字などが読み取れる場合があります. 確実に隠すときは, モザイクを強めにするか, 塗りつぶしの図形を使ってください</p>
 </div>
 <label for="editOpacity">不透明度 <span id="editOpacityVal" class="value">100%</span></label>
 <input id="editOpacity" type="range" min="0" max="100" value="100">
@@ -260,7 +286,6 @@
 <div class="cp-row">
 <div class="cp-compare"><button id="cpOld" type="button" class="cp-old" title="開いたときの色に戻す" aria-label="開いたときの色に戻す"></button><span id="cpNew" class="cp-new" aria-hidden="true"></span></div>
 <input id="cpHex" class="text-input cp-hex" type="text" maxlength="7" spellcheck="false" autocomplete="off" aria-label="カラーコード（16進数）">
-<button id="cpEyedropper" type="button" class="ghost cp-tool" title="画面から色を拾う" aria-label="画面から色を拾う" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 4.5l5 5M17 2.5l4.5 4.5-3 3-4.5-4.5zM13.5 6.5l-9 9V20h4.5l9-9"/></svg></button>
 </div>
 <p id="cpRecentLabel" class="cp-label">最近使った色</p>
 <div id="cpRecent" class="cp-swatches"></div>

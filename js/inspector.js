@@ -1,6 +1,11 @@
 // 選択中のオブジェクトの編集パネル. 欄への表示と, 触った項目の反映.
 
 import {
+  BADGE_MAX,
+  EFFECT_MAX_PX,
+  EFFECT_MIN_PX,
+  OUTLINE_MAX_PX,
+  TEXT_DEFAULTS,
   TEXT_MAX_PX,
   TEXT_MIN_PX,
   geometryFields,
@@ -10,7 +15,9 @@ import {
 import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
 import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
-import { isLineType, isText, moveObject, objectCenter, refWidth } from './geometry.js';
+import {
+  isBadge, isEffectType, isLineType, isText, moveObject, objectCenter, refWidth,
+} from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
 import { requestDraw } from './render.js';
@@ -34,6 +41,9 @@ function updateInspectorLabels() {
   $('editTextSizeVal').textContent = `${$('editTextSize').value} px`;
   $('editOpacityVal').textContent = `${$('editOpacity').value}%`;
   $('editLineWidthVal').textContent = `${$('editLineWidth').value} px`;
+  $('editStrengthVal').textContent = `${$('editStrength').value} px`;
+  const outline = Number($('editTextOutlineWidth').value);
+  $('editTextOutlineWidthVal').textContent = outline ? `${outline} px` : 'なし';
 }
 
 // フォントと太さの選択肢は, フォントの一覧(fonts.js)から作る.
@@ -60,8 +70,16 @@ export function updateSelectionInspector() {
   }
 
   const textObject = isText(obj);
+  const effect = isEffectType(obj.type);
+  const badge = isBadge(obj);
   $('textFields').hidden = !textObject;
-  $('shapeFields').hidden = textObject;
+  // ぼかし・モザイクは色を持たず, 強さだけを持つ. 番号は, 丸の色・数字の色・番号を持つ.
+  $('shapeFields').hidden = textObject || effect;
+  $('effectFields').hidden = !effect;
+  $('badgeFields').hidden = !badge;
+  $('strokeFields').hidden = badge;
+  $('editFillLabel').textContent = badge ? '丸の色' : '塗り色';
+  $('editStrokeLabel').textContent = badge ? '数字の色' : '線の色';
   $('sizeFields').hidden = textObject;
   const flags = [obj.hidden ? '非表示' : '', obj.locked ? 'ロック中' : ''].filter(Boolean).join('・');
   $('selectedObjectName').textContent = `${objectTypeLabel(obj.type)}（重ね順 ${state.selectedIndex + 1} / ${objects.length}）${flags ? ` ${flags}` : ''}`;
@@ -78,6 +96,8 @@ export function updateSelectionInspector() {
     $('editTextBg').value = obj.bg;
     $('editTextTransparent').checked = obj.transparent;
     $('editTextBg').disabled = obj.transparent;
+    $('editTextOutline').value = obj.outline || TEXT_DEFAULTS.outline;
+    $('editTextOutlineWidth').value = Math.max(0, Math.min(OUTLINE_MAX_PX, Math.round(Number(obj.outlineWidth || 0) * refWidth())));
     const sizePx = Math.max(TEXT_MIN_PX, Math.min(TEXT_MAX_PX, Math.round(obj.size * refWidth())));
     $('editTextSize').value = sizePx;
     $('editTextFont').value = obj.font;
@@ -90,6 +110,8 @@ export function updateSelectionInspector() {
     $('editStroke').value = obj.stroke || '#ffffff';
     $('editStyle').value = obj.style || 'fill';
     $('editLineWidth').value = Math.max(1, Math.round(Number(obj.lineWidth || 0) * refWidth()));
+    $('editStrength').value = Math.max(EFFECT_MIN_PX, Math.min(EFFECT_MAX_PX, Math.round(Number(obj.strength || 0) * refWidth())));
+    $('editBadgeNumber').value = String(obj.number ?? 0);
     syncWindowStyleOption($('editStyle'), obj.type);
   }
   updateInspectorLabels();
@@ -118,7 +140,7 @@ export function applyInspector() {
     return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : null;
   };
   const ref = refWidth();
-  const last = isText(obj) ? state.lastText : state.lastShape;
+  const last = isText(obj) ? state.lastText : isBadge(obj) ? state.lastBadge : state.lastShape;
 
   if (touched('editX')) {
     const value = number('editX', -100, 200);
@@ -149,6 +171,17 @@ export function applyInspector() {
     if (touched('editTextBg')) {
       obj.bg = $('editTextBg').value;
       last.bg = obj.bg;
+    }
+    if (touched('editTextOutline')) {
+      obj.outline = $('editTextOutline').value;
+      last.outline = obj.outline;
+    }
+    if (touched('editTextOutlineWidth')) {
+      const value = number('editTextOutlineWidth', 0, OUTLINE_MAX_PX);
+      if (value !== null) {
+        obj.outlineWidth = value / ref;
+        last.outlineWidthPx = value;
+      }
     }
     if (touched('editTextTransparent')) {
       obj.transparent = $('editTextTransparent').checked;
@@ -195,6 +228,17 @@ export function applyInspector() {
         obj.y1 = cy - sign * value / 200;
         obj.y2 = cy + sign * value / 200;
       }
+    }
+    if (touched('editStrength')) {
+      const value = number('editStrength', EFFECT_MIN_PX, EFFECT_MAX_PX);
+      if (value !== null) {
+        obj.strength = value / ref;
+        state.lastEffect.strengthPx = value;
+      }
+    }
+    if (touched('editBadgeNumber')) {
+      const value = number('editBadgeNumber', 0, BADGE_MAX);
+      if (value !== null) obj.number = Math.round(value);
     }
     if (touched('editFill')) {
       obj.fill = $('editFill').value;

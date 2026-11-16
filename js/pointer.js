@@ -1,6 +1,7 @@
 // プレビュー上のポインタ操作(配置, 選択, 移動, ハンドル, 切り抜き).
 
 import {
+  BADGE_DEFAULTS,
   HANDLE_REACH,
   HANDLE_REACH_TOUCH,
   MAX_OBJECTS,
@@ -225,6 +226,16 @@ original.addEventListener('pointermove', (event) => {
   requestDraw();
 });
 
+// 番号を, 置いた点を中心にした, 画面上で正円の大きさにする(大きさは BADGE_DEFAULTS.sizePx).
+function sizeBadgeAround(shape) {
+  const ref = refWidth();
+  const halfX = BADGE_DEFAULTS.sizePx / ref / 2;
+  const halfY = halfX * original.width / original.height;
+  const cx = shape.x1;
+  const cy = shape.y1;
+  Object.assign(shape, { x1: cx - halfX, x2: cx + halfX, y1: cy - halfY, y2: cy + halfY });
+}
+
 function finishPointerAction() {
   const action = state.pointerAction;
   state.pointerAction = null;
@@ -235,7 +246,10 @@ function finishPointerAction() {
     if (state.currentShape) {
       const dx = (state.currentShape.x2 - state.currentShape.x1) * original.width;
       const dy = (state.currentShape.y2 - state.currentShape.y1) * original.height;
-      if (Math.hypot(dx, dy) >= 3 && objects.length < MAX_OBJECTS) {
+      // 番号は, クリックだけでも決まった大きさで置く.
+      const clicked = Math.hypot(dx, dy) < 3;
+      if (clicked && state.currentShape.type === 'badge') sizeBadgeAround(state.currentShape);
+      if ((!clicked || state.currentShape.type === 'badge') && objects.length < MAX_OBJECTS) {
         objects.push(state.currentShape);
         state.selectedIndex = objects.length - 1;
         updateSelectionInspector();

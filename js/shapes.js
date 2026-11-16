@@ -1,9 +1,18 @@
 // 図形の描画と, 図形・テキストの新規作成.
 
-import { TEXT_DEFAULTS } from './constants.js';
+import { BADGE_MAX, TEXT_DEFAULTS, TEXT_INK_CENTER } from './constants.js';
 import { $ } from './dom.js';
-import { newObjectId, state } from './state.js';
-import { isLineType, mapPointToCanvas, refWidth } from './geometry.js';
+import { newObjectId, objects, state } from './state.js';
+import {
+  isBadge, isEffectType, isLineType, mapPointToCanvas, refWidth,
+} from './geometry.js';
+import { fontStack } from './fonts.js';
+
+// 次に置く番号. 置いてある番号の最大値の次にする(1つも無ければ1).
+export function nextBadgeNumber() {
+  const used = objects.filter(isBadge).map((obj) => Number(obj.number) || 0);
+  return Math.min(BADGE_MAX, Math.max(0, ...used) + 1);
+}
 
 // 線・矢印では「窓」を選べないため, 選択肢を無効化して値も補正する.
 export function syncWindowStyleOption(styleSelect, type) {
@@ -15,6 +24,15 @@ export function syncWindowStyleOption(styleSelect, type) {
 // 新しく置く図形の設定. 描画方法はオプションバー, 色や太さは直前に編集した値を使う.
 export function newShapeStyle() {
   const type = state.shapeType;
+  const base = { type, style: 'fill', opacity: 1, rotation: 0, hidden: false, locked: false };
+  // ぼかし・モザイクは, 強さだけを持つ. 強さも画像幅に対する比率で保存する.
+  if (isEffectType(type)) return { ...base, strength: state.lastEffect.strengthPx / refWidth() };
+  // 番号は, 塗りつぶしの丸と数字. 色は図形とは別に引き継ぐ.
+  if (type === 'badge') {
+    return {
+      ...base, fill: state.lastBadge.fill, stroke: state.lastBadge.stroke, lineWidth: 0, number: nextBadgeNumber(),
+    };
+  }
   let style = $('shapeStyle').value;
   if (isLineType(type) && style === 'window') style = 'stroke';
   const last = state.lastShape;
@@ -162,6 +180,143 @@ function drawArrow(ctx, p1, p2, lineWidth, head, both) {
   ctx.fill();
 }
 
+// ぼかし・モザイク. それまでに描いた内容(元画像と, 背面にあるオブジェクト)の範囲を写し取り, 加工して範囲の中へ描き戻す.
+// 前面にあるオブジェクトは, この後に描くので加工されない. scale は画像幅1あたりの描画先のpx.
+const canvasFilterSupported = typeof document.createElement('canvas').getContext('2d').filter === 'string';
+
+function drawEffect(ctx, width, height, shape, place, scale) {
+  const { centerX, centerY, p1, p2, rotation } = place;
+  const strength = Math.max(1, Number(shape.strength || 0) * scale);
+  const left = Math.min(p1.x, p2.x);
+  const top = Math.min(p1.y, p2.y);
+  const w = Math.abs(p2.x - p1.x);
+  const h = Math.abs(p2.y - p1.y);
+  if (w < 1 || h < 1) return;
+  // 回した範囲を囲む, 画面に沿った長方形(ぼかしは, にじむ分だけ広く写し取る).
+  const cos = Math.cos(rotation);
+  const sin = Math.sin(rotation);
+  const corners = [[left, top], [left + w, top], [left, top + h], [left + w, top + h]]
+    .map(([x, y]) => [centerX + x * cos - y * sin, centerY + x * sin + y * cos]);
+  const margin = shape.type === 'blur' ? Math.ceil(strength * 2) : 0;
+  const bx = Math.max(0, Math.floor(Math.min(...corners.map((c) => c[0]))) - margin);
+  const by = Math.max(0, Math.floor(Math.min(...corners.map((c) => c[1]))) - margin);
+  const bx2 = Math.min(width, Math.ceil(Math.max(...corners.map((c) => c[0]))) + margin);
+  const by2 = Math.min(height, Math.ceil(Math.max(...corners.map((c) => c[1]))) + margin);
+  const bw = bx2 - bx;
+  const bh = by2 - by;
+  if (bw < 1 || bh < 1) return;
+
+  // モザイクは, 写し取る範囲をマスの大きさ(整数px)の倍数にそろえ, マスの境目と縮める単位を一致させる.
+  const cell = Math.max(2, Math.round(strength));
+  const cols = Math.ceil(bw / cell);
+  const rows = Math.ceil(bh / cell);
+  const mosaic = shape.type === 'mosaic';
+  const copy = document.createElement('canvas');
+  copy.width = mosaic ? cols * cell : bw;
+  copy.height = mosaic ? rows * cell : bh;
+  copy.getContext('2d').drawImage(ctx.canvas, bx, by, bw, bh, 0, 0, bw, bh);
+  if (mosaic) {
+    // 画像の端で余った部分は, 端の画素を引き伸ばして埋める(透明のままだと, 端のマスが薄くなる).
+    const cctx = copy.getContext('2d');
+    if (copy.width > bw) cctx.drawImage(copy, bw - 1, 0, 1, bh, bw, 0, copy.width - bw, bh);
+    if (copy.height > bh) cctx.drawImage(copy, 0, bh - 1, copy.width, 1, 0, bh, copy.width, copy.height - bh);
+  }
+
+  ctx.save();
+  ctx.globalAlpha = shape.opacity;
+  // 範囲(回した長方形)の中だけに描き戻す.
+  ctx.translate(centerX, centerY);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  ctx.rect(left, top, w, h);
+  ctx.clip();
+  ctx.rotate(-rotation);
+  ctx.translate(-centerX, -centerY);
+
+  if (mosaic) {
+    // 1マスを cell px にする. マスごとの平均の色に縮め, ぼかさずに拡大して戻す.
+    const small = shrink(copy, cols, rows);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(small, 0, 0, cols, rows, bx, by, cols * cell, rows * cell);
+    release(small);
+  } else if (canvasFilterSupported) {
+    ctx.filter = `blur(${strength}px)`;
+    ctx.drawImage(copy, bx, by);
+  } else {
+    // canvas のフィルターが無いブラウザでは, 縮小して滑らかに拡大することで, ぼかしの代わりにする.
+    const small = shrink(copy, Math.max(1, Math.round(bw / strength)), Math.max(1, Math.round(bh / strength)));
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(small, 0, 0, Math.max(1, Math.round(bw / strength)), Math.max(1, Math.round(bh / strength)), bx, by, bw, bh);
+    release(small);
+  }
+  ctx.restore();
+  release(copy);
+}
+
+// 一時的なcanvasのメモリを, すぐに返す.
+function release(canvas) {
+  canvas.width = 0;
+  canvas.height = 0;
+}
+
+// canvas を w × h px に縮める. 一度に大きく縮めると, ブラウザは一部の画素だけを拾うため,
+// 半分ずつ縮めて, 元の画素がまんべんなく平均されるようにする. 結果は左上の w × h px に入る.
+function shrink(source, w, h) {
+  let current = source;
+  let cw = source.width;
+  let ch = source.height;
+  const work = [document.createElement('canvas'), document.createElement('canvas')];
+  let turn = 0;
+  do {
+    const nw = Math.max(w, Math.ceil(cw / 2));
+    const nh = Math.max(h, Math.ceil(ch / 2));
+    const target = work[turn];
+    if (target.width < nw || target.height < nh) {
+      target.width = Math.max(target.width, nw);
+      target.height = Math.max(target.height, nh);
+    }
+    const tctx = target.getContext('2d');
+    tctx.imageSmoothingEnabled = true;
+    tctx.imageSmoothingQuality = 'high';
+    tctx.clearRect(0, 0, nw, nh);
+    tctx.drawImage(current, 0, 0, cw, ch, 0, 0, nw, nh);
+    current = target;
+    cw = nw;
+    ch = nh;
+    turn = 1 - turn;
+  } while (cw > w || ch > h);
+  release(work[turn]);
+  return current;
+}
+
+// 番号. 塗りつぶしの丸(楕円)の中央に, 数字を太字で描く. 数字の色は線の色(stroke)を使う.
+function drawBadge(ctx, shape, place) {
+  const { centerX, centerY, p1, p2, rotation } = place;
+  const w = Math.max(1, Math.abs(p2.x - p1.x));
+  const h = Math.max(1, Math.abs(p2.y - p1.y));
+  const label = String(shape.number ?? '');
+  ctx.save();
+  ctx.globalAlpha = shape.opacity;
+  ctx.translate(centerX, centerY);
+  ctx.rotate(rotation);
+  ctx.beginPath();
+  ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
+  ctx.fillStyle = shape.fill;
+  ctx.fill();
+  if (label) {
+    // 桁が増えるほど, 文字を小さくして丸に収める.
+    const ratio = label.length >= 3 ? 0.42 : label.length === 2 ? 0.54 : 0.64;
+    const size = Math.min(w, h) * ratio;
+    ctx.font = `700 ${size}px ${fontStack('plex')}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillStyle = shape.stroke;
+    ctx.fillText(label, 0, size * TEXT_INK_CENTER, w * 0.86);
+  }
+  ctx.restore();
+}
+
 export function drawShape(ctx, width, height, shape, cropRect) {
   const mapped1 = mapPointToCanvas(shape.x1, shape.y1, width, height, cropRect);
   const mapped2 = mapPointToCanvas(shape.x2, shape.y2, width, height, cropRect);
@@ -174,6 +329,15 @@ export function drawShape(ctx, width, height, shape, cropRect) {
   const unit = width / cropRect.w / refWidth();
   const lineWidth = Math.max(1, Number(shape.lineWidth || 0) * width / cropRect.w);
   const rotation = Number(shape.rotation || 0) * Math.PI / 180;
+
+  if (isEffectType(type)) {
+    drawEffect(ctx, width, height, shape, { centerX, centerY, p1, p2, rotation }, width / cropRect.w);
+    return;
+  }
+  if (type === 'badge') {
+    drawBadge(ctx, shape, { centerX, centerY, p1, p2, rotation });
+    return;
+  }
 
   if (style === 'window' && !isLineType(type)) {
     // 全面の矩形と図形を偶奇規則で塗り, 図形の内側だけを抜く. 一時canvasを作らないので高解像度でも軽い.
@@ -251,6 +415,8 @@ export function makeText(point) {
     size: last.sizePx / refWidth(),
     font: last.font,
     weight: last.weight,
+    outline: last.outline,
+    outlineWidth: last.outlineWidthPx / refWidth(),
     opacity: last.opacity,
     rotation: 0,
     hidden: false,
@@ -273,6 +439,9 @@ export function objectTypeLabel(type) {
     line: '直線',
     arrow: '矢印',
     arrow2: '両矢印',
+    badge: '番号',
+    blur: 'ぼかし',
+    mosaic: 'モザイク',
     text: 'テキスト',
   })[type] || '図形';
 }

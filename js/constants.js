@@ -6,9 +6,11 @@ export const HISTORY_LIMIT = 80;
 export const MAX_OBJECTS = 500;
 export const PROJECT_FORMAT = 'iMage-Editor-project';
 // 編集データの形式の版. v5 で図形の種類が増えた(角丸長方形・ひし形・星・吹き出し・太矢印・両矢印).
-export const PROJECT_VERSION = 5;
+// v6 で, ぼかし・モザイク(strength), 番号(number), テキストの縁取り(outline, outlineWidth)が増えた.
+export const PROJECT_VERSION = 6;
 export const SHAPE_TYPES = [
-  'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'line', 'arrow', 'arrow2',
+  'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'badge', 'line', 'arrow', 'arrow2',
+  'blur', 'mosaic',
 ];
 export const SHAPE_STYLES = ['fill', 'stroke', 'window'];
 export const DITHER_METHODS = ['floyd', 'atkinson', 'ordered', 'none'];
@@ -34,7 +36,17 @@ export const TEXT_MAX_PX = 200;
 export const TEXT_INK_CENTER = 0.37;
 export const TEXT_DEFAULTS = {
   content: 'テキスト', color: '#ffffff', bg: '#202020', transparent: false, sizePx: 24, font: 'plex', weight: 600,
+  outline: '#000000', outlineWidthPx: 0,
 };
+// 縁取りの太さの範囲(UI上のpx).
+export const OUTLINE_MAX_PX = 20;
+// 番号の最初の設定. 丸の色と数字の色は, 図形とは別に, 直前に編集した値を引き継ぐ.
+export const BADGE_DEFAULTS = { fill: '#d83b3b', stroke: '#ffffff', sizePx: 28 };
+export const BADGE_MAX = 999;
+// ぼかし・モザイクの強さ(UI上のpx). ぼかしは半径, モザイクは1マスの大きさ.
+export const EFFECT_DEFAULTS = { strengthPx: 12 };
+export const EFFECT_MIN_PX = 2;
+export const EFFECT_MAX_PX = 60;
 export const DEFAULT_EXPORT_NAME = 'Edited iMage';
 export const EXPORT_FORMATS = {
   png: { mime: 'image/png', ext: 'png', label: 'PNG 画像', lossy: false, note: 'PNGは劣化なしで保存でき, 透過も保てます' },
@@ -70,6 +82,8 @@ export const TOOL_HINTS = {
   select: 'クリックで選択／ドラッグで移動／ハンドルでサイズ変更・回転',
   crop: '枠をドラッグして切り抜き範囲を調整／上のボタンで画像を90°回転',
   shape: 'ドラッグして図形を配置',
+  badge: 'クリックで番号を配置（置くたびに1つずつ増える）／ドラッグで大きさを指定',
+  effect: 'ドラッグした範囲を, ぼかし・モザイクで隠す',
   text: 'クリックしてテキストを配置',
 };
 export const TOOL_KEYS = { v: 'select', c: 'crop', r: 'shape', t: 'text' };
@@ -81,10 +95,11 @@ export const inspectorFields = [
   'editX', 'editY', 'editAngle', 'editOpacity',
   'editWidth', 'editHeight', 'editFill', 'editStroke', 'editStyle', 'editLineWidth',
   'editTextContent', 'editTextColor', 'editTextBg', 'editTextTransparent', 'editTextSize', 'editTextFont', 'editTextWeight',
+  'editTextOutline', 'editTextOutlineWidth', 'editStrength', 'editBadgeNumber',
 ];
 // ロック中は動かせないため, 位置・大きさ・角度の欄を無効にする.
 export const geometryFields = ['editX', 'editY', 'editWidth', 'editHeight', 'editAngle'];
-export const colorFields = ['editTextColor', 'editTextBg', 'editFill', 'editStroke'];
+export const colorFields = ['editTextColor', 'editTextBg', 'editTextOutline', 'editFill', 'editStroke'];
 export const orderButtons = ['bringFront', 'sendBack'];
 export const inspectorControls = [
   ...inspectorFields, ...orderButtons, 'duplicateObject', 'deleteObject',

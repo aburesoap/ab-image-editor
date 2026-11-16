@@ -2,7 +2,9 @@
 
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
-import { isLineType, isText } from './geometry.js';
+import {
+  isBadge, isEffectType, isLineType, isText,
+} from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
 
 const STYLE_LABELS = { fill: '塗り', stroke: '枠線', window: '窓' };
@@ -28,7 +30,8 @@ export function layerName(obj) {
     if (!line) return '（空のテキスト）';
     return line.length > NAME_LIMIT ? `${line.slice(0, NAME_LIMIT)}…` : line;
   }
-  if (isLineType(obj.type)) return objectTypeLabel(obj.type);
+  if (isBadge(obj)) return `番号 ${obj.number ?? ''}`;
+  if (isLineType(obj.type) || isEffectType(obj.type)) return objectTypeLabel(obj.type);
   return `${objectTypeLabel(obj.type)}・${STYLE_LABELS[obj.style] || ''}`;
 }
 
@@ -36,6 +39,8 @@ export function layerName(obj) {
 function swatchOf(obj) {
   if (isText(obj)) return { kind: 'text', fg: obj.color, bg: obj.transparent ? '' : obj.bg };
   if (isLineType(obj.type)) return { kind: 'line', fg: obj.stroke, bg: '' };
+  if (isEffectType(obj.type)) return { kind: obj.type, fg: '', bg: '' };
+  if (isBadge(obj)) return { kind: 'badge', fg: obj.stroke, bg: obj.fill };
   if (obj.style === 'stroke') return { kind: 'stroke', fg: obj.stroke, bg: '' };
   return { kind: obj.style === 'window' ? 'window' : 'fill', fg: obj.fill, bg: '' };
 }
@@ -114,9 +119,10 @@ function buildRow(obj, index) {
   const sw = swatchOf(obj);
   const swatch = document.createElement('span');
   swatch.className = `layer-swatch sw-${sw.kind}`;
-  swatch.style.setProperty('--fg', sw.fg);
+  if (sw.fg) swatch.style.setProperty('--fg', sw.fg);
   if (sw.bg) swatch.style.setProperty('--bg', sw.bg);
   if (sw.kind === 'text') swatch.textContent = 'A';
+  if (sw.kind === 'badge') swatch.textContent = String(obj.number ?? '').slice(0, 3);
   swatch.setAttribute('aria-hidden', 'true');
 
   const name = document.createElement('span');

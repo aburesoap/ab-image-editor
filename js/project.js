@@ -1,7 +1,9 @@
 // 編集データ(プロジェクト)の保存と読み込み.
 
 import {
+  BADGE_MAX,
   MAX_OBJECTS,
+  OUTLINE_MAX_PX,
   MIN_CROP,
   PROJECT_FORMAT,
   PROJECT_VERSION,
@@ -15,7 +17,9 @@ import { colorOr, finite, limited } from './validate.js';
 import { $, downloadBlob, setStatus } from './dom.js';
 import { newObjectId, state } from './state.js';
 import { FONT_KEYS, nearestWeight } from './fonts.js';
-import { ROTATIONS, isLineType, refWidth } from './geometry.js';
+import {
+  ROTATIONS, isEffectType, isLineType, refWidth,
+} from './geometry.js';
 import { markSaved, resetHistory, restoreSnapshot, snapshot } from './history.js';
 
 $('saveProject').addEventListener('click', () => {
@@ -36,6 +40,8 @@ function sanitizeShape(raw) {
   if (!raw || typeof raw !== 'object' || !SHAPE_TYPES.includes(raw.type)) return null;
   let style = SHAPE_STYLES.includes(raw.style) ? raw.style : 'fill';
   if (isLineType(raw.type) && style === 'window') style = 'stroke';
+  // 番号とぼかし・モザイクには, 描画方法が無い.
+  if (raw.type === 'badge' || isEffectType(raw.type)) style = 'fill';
   return {
     id: newObjectId(),
     type: raw.type,
@@ -49,6 +55,9 @@ function sanitizeShape(raw) {
     locked: raw.locked === true,
     x1: finite(raw.x1, 0), y1: finite(raw.y1, 0),
     x2: finite(raw.x2, 0), y2: finite(raw.y2, 0),
+    // 種類ごとの項目. ぼかし・モザイクは強さ, 番号は数字.
+    ...(isEffectType(raw.type) ? { strength: limited(raw.strength, 0.024, 0, 1) } : {}),
+    ...(raw.type === 'badge' ? { number: Math.round(limited(raw.number, 1, 0, BADGE_MAX)) } : {}),
   };
 }
 
@@ -64,6 +73,8 @@ function sanitizeText(raw, ref) {
     color: colorOr(raw.color, TEXT_DEFAULTS.color),
     bg: colorOr(raw.bg, TEXT_DEFAULTS.bg),
     transparent: Boolean(raw.transparent),
+    outline: colorOr(raw.outline, TEXT_DEFAULTS.outline),
+    outlineWidth: limited(raw.outlineWidth, 0, 0, OUTLINE_MAX_PX / ref),
     size: limited(raw.size, TEXT_DEFAULTS.sizePx / ref, TEXT_MIN_PX / ref, TEXT_MAX_PX / ref),
     font,
     weight,

@@ -9,6 +9,7 @@ import { observeStage, updateStageView } from './stage.js';
 import { updateToolUI } from './actions.js';
 import './controls.js';
 import './open.js';
+import './blank.js';
 import './layerlist.js';
 import './zoom.js';
 import './pointer.js';

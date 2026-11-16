@@ -11,7 +11,8 @@
   --red: #c24e42;
   --focus: #194c9b;
   --font-sans: "IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, system-ui, sans-serif;
-  --font-num: "IBM Plex Math", var(--font-sans);
+  /* 数値の表示. 数字の幅をそろえ, 桁が変わっても横にずれないようにする. */
+  --font-num: var(--font-sans);
 }
 
 * {
@@ -371,6 +372,72 @@ body {
   font-weight: 400;
 }
 
+/* 起動画面の「白紙から始める」は button なので, label の「画像を開く」と見た目をそろえる. */
+button.file-drop {
+  min-height: 0;
+  text-align: left;
+  font-weight: 400;
+}
+
+.start-title {
+  margin: 0;
+  color: var(--ink);
+  font: 700 15px var(--font-sans);
+}
+
+/* ---- 白紙から始める ---- */
+.blank-dialog {
+  width: min(420px, calc(100vw - 32px));
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--blue);
+  background: var(--sheet);
+  color: var(--ink);
+}
+
+.blank-dialog::backdrop {
+  background: rgba(20, 28, 40, .35);
+}
+
+.blank-dialog h3 {
+  margin: 0 0 8px;
+  color: var(--blue);
+  font: 700 15px var(--font-sans);
+}
+
+.size-choices {
+  margin: 0 0 8px;
+  padding: 0;
+  border: 0;
+}
+
+.size-choices legend {
+  padding: 0;
+  margin-bottom: 4px;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.size-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.size-choice b {
+  min-width: 96px;
+  font-weight: 600;
+}
+
+.size-choice small {
+  color: var(--muted);
+}
+
 /* ---- 右のパネル ---- */
 .panel {
   grid-area: panel;
@@ -500,6 +567,7 @@ textarea,
 
 .number-input {
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
 }
 
 textarea:focus,
@@ -537,6 +605,7 @@ input[type=color] {
   float: right;
   color: var(--red);
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
 }
 
 .check-label {
@@ -626,12 +695,14 @@ button:disabled {
   width: 30px;
   padding: 4px 0 !important;
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
 }
 
 .zoom-level {
   min-width: 62px;
   text-align: center;
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   font-weight: 400;
 }
 
@@ -722,6 +793,7 @@ button:disabled {
 .layer-count {
   color: var(--red);
   font: 400 12px var(--font-num);
+  font-variant-numeric: tabular-nums;
 }
 
 .layer-list {
@@ -973,6 +1045,7 @@ button:disabled {
   background: #fff;
   color: var(--ink);
   font: 400 12px var(--font-num);
+  font-variant-numeric: tabular-nums;
   letter-spacing: .5px;
 }
 
@@ -1079,6 +1152,7 @@ button:disabled {
   min-width: 0;
   padding: 5px 7px;
   font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
   text-transform: uppercase;
 }
 

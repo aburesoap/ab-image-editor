@@ -1109,3 +1109,60 @@ test('元画像を含めずに保存した編集データは, 画像が無けれ
   await page.setInputFiles('#loadProject', file);
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('サイズが保存データと一致しません'));
 });
+
+// ---- v2.4.0 ----
+test('起動画面で「画像を開く」と「白紙から始める」を選べる', async () => {
+  await page.goto(`${ORIGIN}/index.html`);
+  assert.equal(await page.isVisible('#emptyState'), true);
+  assert.match(await page.textContent('#emptyState'), /画像を開く/);
+  assert.equal(await page.isVisible('#startBlank'), true);
+  await page.click('#startBlank');
+  assert.equal(await page.isVisible('#blankDialog'), true);
+  const sizes = await page.$$eval('#blankForm input[name=blankSize]', (els) => els.map((el) => el.value));
+  assert.deepEqual(sizes, ['1920x1080', '1080x1080', '1200x675', '1080x1350', 'custom']);
+  assert.equal(await page.isDisabled('#blankWidth'), true, '自分で入力を選ぶまでは入力できない');
+  // やめると何も開かない.
+  await page.click('#blankCancel');
+  assert.equal(await page.isVisible('#blankDialog'), false);
+  assert.equal(await page.isVisible('#emptyState'), true);
+
+  await page.click('#startBlank');
+  await page.check('#blankForm input[value="1080x1080"]');
+  await page.click('#blankCreate');
+  await page.waitForFunction(() => !document.getElementById('original').hidden);
+  assert.equal(await page.$eval('#original', (el) => `${el.width}x${el.height}`), '1080x1080');
+  assert.deepEqual(await layerNames(), ['白地']);
+  assert.match(await status(), /白紙を作りました：1080 × 1080 px/);
+  // 作った直後は, 元に戻す対象も未保存の編集も無い.
+  assert.equal(await page.isDisabled('#undo'), true);
+  const [px] = await resultPixels([[0.5, 0.5]]);
+  assert.ok(near(px, [255, 255, 255]), `白 (実際: ${px})`);
+});
+
+test('白紙は大きさを自分で入力でき, 範囲の外は作らない. 白地を消すと透明になる', async () => {
+  await page.click('#fileMenuSummary');
+  await page.click('#newBlank');
+  await page.check('#blankForm input[value="custom"]');
+  assert.equal(await page.isDisabled('#blankWidth'), false);
+  await page.fill('#blankWidth', '5');
+  await page.click('#blankCreate');
+  assert.equal(await page.isVisible('#blankDialog'), true, '範囲の外なら閉じない');
+  assert.match(await page.textContent('#blankNote'), /16〜8000/);
+  await page.fill('#blankWidth', '320');
+  await page.fill('#blankHeight', '240');
+  await page.click('#blankCreate');
+  await page.waitForFunction(() => document.getElementById('original').width === 320);
+  assert.equal(await page.$eval('#original', (el) => el.height), 240);
+  // 白地を消すと, 仕上がりは透明.
+  await page.locator('#layerList [data-act=delete]').nth(0).click();
+  await makeResult();
+  const alpha = await page.evaluate(() => document.getElementById('result').getContext('2d').getImageData(160, 120, 1, 1).data[3]);
+  assert.equal(alpha, 0);
+});
+
+test('フォントは Google Fonts だけから読み込み, ほかのサイトへは取りに行かない', async () => {
+  await placeText([0.5, 0.5], '123');
+  await page.waitForTimeout(200);
+  assert.ok(fontRequests.length > 0);
+  assert.deepEqual(fontRequests.filter((url) => !url.startsWith('https://fonts.googleapis.com/') && !url.startsWith('https://fonts.gstatic.com/')), []);
+});

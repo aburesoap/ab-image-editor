@@ -9,7 +9,7 @@
 //   css      … フォントを定義したスタイルシートのURL(Google Fonts など). または,
 //   files    … 太さごとのフォントファイル(woff2)のURL
 // どちらも https のURLに限る(index.html の CSP が https だけを許可している).
-// 読み込み先は, Google Fonts や, 作者が公式に公開しているパッケージなど, 長く安定して配られるものに限る.
+// 読み込み先は, Google Fonts など, 長く安定して配られるものに限る.
 // 足したときは, PRIVACY.md の「外部サイトからの読み込み」に読み込み先を書く.
 
 const SANS_FALLBACK = '"Hiragino Sans", "Yu Gothic UI", Meiryo, system-ui, sans-serif';
@@ -24,16 +24,8 @@ export const TEXT_FONTS = {
   },
 };
 
-// 画面の表示にだけ使うフォント(studio.css の --font-num). テキストの選択肢には出さない.
-const UI_ONLY_FONTS = {
-  plexMath: {
-    family: 'IBM Plex Math',
-    weights: [400],
-    files: { 400: 'https://cdn.jsdelivr.net/npm/@ibm/plex-math@1.1.0/fonts/complete/woff2/IBMPlexMath-Regular.woff2' },
-  },
-};
-// 画面の表示に使うため, 起動時に読み込みを始めるフォント. studio.css の --font-sans / --font-num と揃える.
-const STARTUP_FONTS = ['plex', 'plexMath'];
+// 画面の表示に使うため, 起動時に読み込みを始めるフォント. studio.css の --font-sans と揃える.
+const STARTUP_FONTS = ['plex'];
 
 export const DEFAULT_FONT = 'plex';
 export const FONT_KEYS = Object.keys(TEXT_FONTS);
@@ -64,7 +56,7 @@ const started = new Map();
 // 同じフォントは1度だけ登録する. 失敗しても止めず, 端末内のフォントで表示を続ける.
 export function ensureFont(key) {
   if (started.has(key)) return started.get(key);
-  const font = TEXT_FONTS[key] || UI_ONLY_FONTS[key];
+  const font = TEXT_FONTS[key];
   let ready = Promise.resolve();
   if (font?.css) {
     ready = new Promise((resolve) => {

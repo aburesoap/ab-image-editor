@@ -8,7 +8,6 @@
 <!-- フォントの読み込み先へ, 先に接続しておく(フォントの一覧は js/fonts.js). -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <meta name="description" content="パソコン中心の画像編集・注釈ツール. 図形・矢印・テキストの書き込み, 切り抜き・回転ができます">
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon16.png">
 <link rel="icon" type="image/png" sizes="48x48" href="icons/icon48.png">
@@ -30,6 +29,7 @@
 <details id="fileMenu" class="menu">
 <summary id="fileMenuSummary" class="btn ghost">ファイル ▾</summary>
 <div class="menu-list">
+<button id="newBlank" class="menu-item">＋ 白紙から始める…</button>
 <button id="saveProjectEmbedded" class="menu-item" disabled>↓ 編集データを保存（元画像を含む）</button>
 <button id="saveProject" class="menu-item" disabled>↓ 元画像を含めずに保存</button>
 <label class="menu-item" for="loadProject">↑ 編集データを読み込む</label><input id="loadProject" type="file" accept="application/json,.json" hidden>
@@ -117,8 +117,10 @@
 </div>
 <div id="stageCanvas" class="stage-canvas">
 <div id="emptyState" class="empty-state">
-<label class="file-drop" for="file"><span class="file-icon">＋</span><strong>画像を選択</strong><small>PNG / JPEG / WebP / GIF</small></label>
-<p class="hint">画像をここへドラッグ&ドロップするか, Ctrl+V で貼り付けても開けます</p>
+<p class="start-title">はじめ方を選んでください</p>
+<label class="file-drop" for="file"><span class="file-icon">＋</span><strong>画像を開く</strong><small>PNG / JPEG / WebP / GIF など</small></label>
+<button id="startBlank" type="button" class="file-drop"><span class="file-icon">□</span><strong>白紙から始める</strong><small>大きさを選んで作る</small></button>
+<p class="hint">画像は, ここへドラッグ&ドロップするか, Ctrl+V や上の「貼り付け」でも開けます</p>
 </div>
 <canvas id="original" hidden></canvas>
 <canvas id="result" hidden></canvas>
@@ -127,7 +129,7 @@
 <button id="convert" class="primary" disabled>仕上がりを作る →</button>
 </div>
 </div>
-<div id="status" class="status" role="status">画像を選択してください</div>
+<div id="status" class="status" role="status">画像を開くか, 白紙から始めてください</div>
 </main>
 <aside id="panel" class="panel collapsed">
 <div class="panel-tabs">
@@ -295,6 +297,25 @@
 </aside>
 </div>
 <div id="dropOverlay" class="drop-overlay" hidden><p><strong>ドロップして開く</strong><small>画像（PNG / JPEG / WebP / GIF / BMP / AVIF）または 編集データ（.json）</small></p></div>
+<dialog id="blankDialog" class="blank-dialog" aria-labelledby="blankTitle">
+<form id="blankForm" novalidate>
+<h3 id="blankTitle">白紙から始める</h3>
+<fieldset class="size-choices">
+<legend>大きさ</legend>
+<label class="size-choice"><input type="radio" name="blankSize" value="1920x1080" checked><b>1920 × 1080</b><small>横長（16:9）</small></label>
+<label class="size-choice"><input type="radio" name="blankSize" value="1080x1080"><b>1080 × 1080</b><small>正方形</small></label>
+<label class="size-choice"><input type="radio" name="blankSize" value="1200x675"><b>1200 × 675</b><small>横長（SNS の投稿向け）</small></label>
+<label class="size-choice"><input type="radio" name="blankSize" value="1080x1350"><b>1080 × 1350</b><small>縦長（4:5）</small></label>
+<label class="size-choice"><input type="radio" name="blankSize" value="custom"><b>自分で入力</b></label>
+</fieldset>
+<div id="blankCustom" class="field-row">
+<div><label for="blankWidth">幅（px）</label><input id="blankWidth" class="number-input" type="number" min="16" max="8000" step="1" value="1280" disabled></div>
+<div><label for="blankHeight">高さ（px）</label><input id="blankHeight" class="number-input" type="number" min="16" max="8000" step="1" value="720" disabled></div>
+</div>
+<p id="blankNote" class="setting-note">いちばん下に白地のレイヤーを敷きます. 白地を消すと, 背景が透明な画像になります</p>
+<div class="button-row"><button id="blankCancel" type="button" class="ghost">やめる</button><button id="blankCreate" type="submit" class="primary">作る</button></div>
+</form>
+</dialog>
 <div id="colorPopover" class="color-popover" role="dialog" aria-label="色を選ぶ" hidden>
 <div id="cpArea" class="cp-area" tabindex="0" role="slider" aria-label="彩度と明るさ（←→で彩度, ↑↓で明るさ）"><div id="cpCursor" class="cp-cursor"></div></div>
 <input id="cpHue" class="cp-hue" type="range" min="0" max="359" step="1" value="0" aria-label="色相">

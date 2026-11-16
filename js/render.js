@@ -3,7 +3,10 @@
 import { FULL_CROP, HANDLE_RADIUS, MIN_SHAPE_SIDE, ROTATE_OFFSET } from './constants.js';
 import { octx, original } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
-import { dims, isLineType, isText, screenScale, sourceSize, toSourcePoint } from './geometry.js';
+import {
+  dims, isCutout, isLineType, isText, screenScale, sourceSize, toSourcePoint,
+} from './geometry.js';
+import { drawWithCutouts } from './cutout.js';
 import { drawText } from './text.js';
 import { drawShape } from './shapes.js';
 import { cropHandles, objectFrame, objectHandles } from './handles.js';
@@ -55,9 +58,21 @@ export function renderComposite(ctx, width, height, cropRect) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   drawSource(ctx, width, height, cropRect);
-  // 隠したオブジェクトは, プレビューにも書き出しにも描かない.
-  objects.forEach((obj) => { if (!obj.hidden) drawObject(ctx, width, height, obj, cropRect); });
-  if (state.currentShape) drawShape(ctx, width, height, state.currentShape, cropRect);
+  // 置いている途中の図形は, いちばん上に置かれるものとして一緒に描く(くり抜きなら, その場で穴が見える).
+  const list = state.currentShape ? [...objects, state.currentShape] : objects;
+  list.forEach((obj, index) => {
+    // くり抜きは自分では描かず, 下のレイヤーと一緒に描く.
+    if (isCutout(obj)) return;
+    // すぐ上に続いているくり抜き(隠したものを除く)を集める.
+    const cutouts = [];
+    for (let j = index + 1; j < list.length && isCutout(list[j]); j += 1) {
+      if (!list[j].hidden) cutouts.push(list[j]);
+    }
+    // 隠したオブジェクトは, プレビューにも書き出しにも描かない.
+    if (obj.hidden) return;
+    if (cutouts.length) drawWithCutouts(ctx, width, height, obj, cutouts, cropRect, drawObject);
+    else drawObject(ctx, width, height, obj, cropRect);
+  });
 }
 
 export function buildCompositeCanvas(width, height, cropRect) {

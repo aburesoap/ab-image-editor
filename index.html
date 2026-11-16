@@ -78,6 +78,7 @@
 <option value="stroke">枠線のみ</option>
 <option value="window">窓（外側を塗る）</option>
 </select>
+<label class="check-label" title="この図形の形で, すぐ下のレイヤー1つに穴を開ける"><input id="shapeCutout" type="checkbox"> すぐ下をくり抜く</label>
 </div>
 <div id="optPen" class="opt-group" hidden>
 <label for="penType">種類</label>
@@ -224,6 +225,10 @@
 <label for="editStrength">強さ <span id="editStrengthVal" class="value">12 px</span></label>
 <input id="editStrength" type="range" min="2" max="60" value="12">
 <p class="setting-note">ぼかしは, 弱いと文字などが読み取れる場合があります. 確実に隠すときは, モザイクを強めにするか, 塗りつぶしの図形を使ってください</p>
+</div>
+<div id="cutoutField">
+<label class="check-label"><input id="editCutout" type="checkbox"> すぐ下のレイヤーをくり抜く</label>
+<p id="cutoutNote" class="setting-note" hidden>この形は描かれず, すぐ下のレイヤー1つに同じ形の穴を開けます. 「窓」の描き方なら, 形の外側を消します. 重ね順の ▲▼ で, くり抜く相手を変えられます</p>
 </div>
 <label for="editOpacity">不透明度 <span id="editOpacityVal" class="value">100%</span></label>
 <input id="editOpacity" type="range" min="0" max="100" value="100">

@@ -21,6 +21,10 @@ export const isPaper = (obj) => obj.type === 'paper';
 export const isPaint = (obj) => obj.type === 'paint';
 // 画像全体に固定されたレイヤー(白地, ペイント). 作業領域では選ばず, 動かさず, ハンドルも出さない.
 export const isFullLayer = (obj) => isPaper(obj) || isPaint(obj);
+// くり抜きにできるもの. 白地・ペイント(画像全体に広がる)と, ぼかし・モザイク(下を加工する)は除く.
+export const canCutout = (type) => !['paper', 'paint', 'blur', 'mosaic'].includes(type);
+// くり抜き. 自分は描かれず, 自分の形ですぐ下のレイヤー1つに穴を開ける.
+export const isCutout = (obj) => Boolean(obj && obj.cutout === true && canCutout(obj.type));
 
 export function getDimensions(width, height, maxSide) {
   const scale = Math.min(1, maxSide / Math.max(width, height));

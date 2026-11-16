@@ -4,7 +4,7 @@ import { BADGE_MAX, TEXT_DEFAULTS, TEXT_INK_CENTER } from './constants.js';
 import { $ } from './dom.js';
 import { newObjectId, objects, state } from './state.js';
 import {
-  isBadge, isEffectType, isLineType, isPenType, mapPointToCanvas, refWidth,
+  canCutout, isBadge, isEffectType, isLineType, isPenType, mapPointToCanvas, refWidth,
 } from './geometry.js';
 import { drawPen } from './pen.js';
 import { drawPaint } from './paint.js';
@@ -416,6 +416,8 @@ export function drawShape(ctx, width, height, shape, cropRect) {
 export function makeShape(start, end, style) {
   return {
     ...style,
+    // オプションバーの「すぐ下をくり抜く」. 図形の道具で置くものだけに付ける(ペンの線は, 編集パネルから付ける).
+    ...(state.tool === 'shape' && canCutout(style.type) && $('shapeCutout').checked ? { cutout: true } : {}),
     id: newObjectId(),
     rotation: Number(style.rotation || 0),
     x1: start.x,

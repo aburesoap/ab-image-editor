@@ -9,7 +9,8 @@ export const PROJECT_FORMAT = 'iMage-Editor-project';
 // v6 で, ぼかし・モザイク(strength), 番号(number), テキストの縁取り(outline, outlineWidth)が増えた.
 // v7 で, ペン・蛍光ペン(points), 白地(paper), 元画像の埋め込み(image)が増えた.
 // v8 で, ペイントレイヤー(paint. 線の列 strokes を持つ)が増えた.
-export const PROJECT_VERSION = 8;
+// v9 で, くり抜き(cutout)が増えた.
+export const PROJECT_VERSION = 9;
 export const SHAPE_TYPES = [
   'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'badge', 'line', 'arrow', 'arrow2',
   'blur', 'mosaic', 'pen', 'marker', 'paper', 'paint',
@@ -118,7 +119,7 @@ export const inspectorFields = [
   'editX', 'editY', 'editAngle', 'editOpacity',
   'editWidth', 'editHeight', 'editFill', 'editStroke', 'editStyle', 'editLineWidth',
   'editTextContent', 'editTextColor', 'editTextBg', 'editTextTransparent', 'editTextSize', 'editTextFont', 'editTextWeight',
-  'editTextOutline', 'editTextOutlineWidth', 'editStrength', 'editBadgeNumber',
+  'editTextOutline', 'editTextOutlineWidth', 'editStrength', 'editBadgeNumber', 'editCutout',
 ];
 // ロック中は動かせないため, 位置・大きさ・角度の欄を無効にする.
 export const geometryFields = ['editX', 'editY', 'editWidth', 'editHeight', 'editAngle'];

@@ -22,7 +22,7 @@ import { $, downloadBlob, setStatus } from './dom.js';
 import { newObjectId, state } from './state.js';
 import { FONT_KEYS, nearestWeight } from './fonts.js';
 import {
-  ROTATIONS, isEffectType, isLineType, isPenType, refWidth,
+  ROTATIONS, canCutout, isEffectType, isLineType, isPenType, refWidth,
 } from './geometry.js';
 import { markSaved, resetHistory, restoreSnapshot, snapshot } from './history.js';
 
@@ -93,6 +93,7 @@ function sanitizeShape(raw) {
     ...(isEffectType(raw.type) ? { strength: limited(raw.strength, 0.024, 0, 1) } : {}),
     ...(raw.type === 'badge' ? { number: Math.round(limited(raw.number, 1, 0, BADGE_MAX)) } : {}),
   };
+  if (raw.cutout === true && canCutout(raw.type)) shape.cutout = true;
   if (isPenType(raw.type)) {
     // ペン・蛍光ペンの点は, 枠の中の位置(0〜1)の組. 形が崩れていれば, その線は読み込まない.
     const points = Array.isArray(raw.points) ? raw.points.slice(0, PEN_MAX_POINTS * 2) : [];
@@ -148,6 +149,7 @@ function sanitizeText(raw, ref) {
     rotation: limited(raw.rotation, 0, -180, 180),
     hidden: raw.hidden === true,
     locked: raw.locked === true,
+    ...(raw.cutout === true ? { cutout: true } : {}),
     x: finite(raw.x, 0.5),
     y: finite(raw.y, 0.5),
   };

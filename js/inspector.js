@@ -16,7 +16,7 @@ import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
 import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
 import {
-  isBadge, isEffectType, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
+  canCutout, isBadge, isEffectType, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
@@ -90,6 +90,9 @@ export function updateSelectionInspector() {
   $('strokeField').hidden = paper;
   $('styleField').hidden = pen;
   $('numericFields').hidden = paper || paint;
+  $('cutoutField').hidden = !canCutout(obj.type);
+  $('editCutout').checked = obj.cutout === true;
+  $('cutoutNote').hidden = obj.cutout !== true;
   $('editFillLabel').textContent = badge ? '丸の色' : paper ? '色' : '塗り色';
   $('editStrokeLabel').textContent = badge ? '数字の色' : pen ? '色' : '線の色';
   $('sizeFields').hidden = textObject;
@@ -170,6 +173,10 @@ export function applyInspector() {
   if (touched('editAngle')) {
     const value = number('editAngle', -180, 180);
     if (value !== null) obj.rotation = value;
+  }
+  if (touched('editCutout') && canCutout(obj.type)) {
+    obj.cutout = $('editCutout').checked;
+    $('cutoutNote').hidden = !obj.cutout;
   }
   if (touched('editOpacity')) {
     const value = number('editOpacity', 0, 100);

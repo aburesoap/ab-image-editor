@@ -3,7 +3,7 @@
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
 import {
-  isBadge, isEffectType, isLineType, isPaint, isPaper, isPenType, isText,
+  isBadge, isCutout, isEffectType, isLineType, isPaint, isPaper, isPenType, isText,
 } from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
 
@@ -25,6 +25,12 @@ let lastSignature = '';
 
 // 一覧の表示名. テキストは内容の最初の行, 図形は種類と描画方法.
 export function layerName(obj) {
+  // くり抜きは, 元の名前に「くり抜き」を添える(描き方の代わりに).
+  if (isCutout(obj)) return `${isText(obj) ? baseName(obj) : objectTypeLabel(obj.type)}・くり抜き`;
+  return baseName(obj);
+}
+
+function baseName(obj) {
   if (isText(obj)) {
     const line = obj.content.split('\n').map((part) => part.trim()).find(Boolean) || '';
     if (!line) return '（空のテキスト）';
@@ -39,6 +45,7 @@ export function layerName(obj) {
 
 // 見本の色. 図形は見た目に使われている色, テキストは文字色と背景色.
 function swatchOf(obj) {
+  if (isCutout(obj)) return { kind: 'cutout', fg: '', bg: '' };
   if (isText(obj)) return { kind: 'text', fg: obj.color, bg: obj.transparent ? '' : obj.bg };
   if (isLineType(obj.type) || isPenType(obj.type)) return { kind: 'line', fg: obj.stroke, bg: '' };
   if (isPaper(obj)) return { kind: 'fill', fg: obj.fill, bg: '' };

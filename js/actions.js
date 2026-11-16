@@ -89,6 +89,8 @@ export function syncShapeOptions() {
   syncWindowStyleOption($('shapeStyle'), state.shapeType);
   // 番号とぼかし・モザイクには, 描画方法が無い.
   $('shapeStyle').disabled = state.shapeType === 'badge' || isEffectType(state.shapeType);
+  // ぼかし・モザイクは, くり抜きにできない.
+  $('shapeCutout').disabled = isEffectType(state.shapeType);
   $('toolHint').textContent = toolHint();
 }
 

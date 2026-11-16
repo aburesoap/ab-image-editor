@@ -274,7 +274,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -698,7 +698,7 @@ test('新しい図形は, 編集データに保存され, 読み込むと戻る'
   await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['balloon', 'arrow2']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -947,7 +947,7 @@ test('番号・ぼかし・縁取りは, 編集データに保存され, 読み�
   await setRange('editTextOutlineWidth', 3);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
   const [blur, badge, text] = saved.document.objects;
   assert.equal(Math.round(blur.strength * 400), 20);
   assert.equal(badge.number, 1);
@@ -1083,7 +1083,7 @@ test('元画像を含めて保存した編集データは, 別の画像を開い
   await page.click('#addPaper');
   const file = await saveProjectToFile('#saveProjectEmbedded');
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
   assert.equal(saved.image.type, 'image/png');
   assert.ok(saved.image.data.length > 100);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['paper', 'pen']);
@@ -1254,14 +1254,14 @@ test('ペイントレイヤーの蛍光ペンは, 下の色と掛け合わせて
   assert.ok(onFill[1] < 0xc9 && onFill[2] < 0x5d, `掛け合わせて濃くなる (実際: ${onFill})`);
 });
 
-test('ペイントレイヤーは, 編集データ(形式 v8)に保存され, 画像と一緒に回る', async () => {
+test('ペイントレイヤーは, 編集データに保存され, 画像と一緒に回る', async () => {
   await page.click('#addPaint');
   await drawPen([[0.1, 0.1], [0.3, 0.1]]);
   await page.selectOption('#penType', 'eraser');
   await drawPen([[0.2, 0.05], [0.2, 0.15]]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 8);
+  assert.equal(saved.version, 9);
   assert.deepEqual(saved.document.objects[0].strokes.map((s) => s.tool), ['pen', 'eraser']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -1274,4 +1274,114 @@ test('ペイントレイヤーは, 編集データ(形式 v8)に保存され, �
   assert.equal(await page.$eval('#original', (el) => `${el.width}x${el.height}`), '300x400');
   const [moved] = await resultPixels([[0.9, 0.15]]);
   assert.ok(near(moved, RED), `回した後の線 (実際: ${moved})`);
+});
+
+// ---- v2.6.0 ----
+// 図形の道具で, 「すぐ下をくり抜く」を付けて置く.
+async function drawCutout(type, from, to) {
+  await page.keyboard.press('r');
+  await page.selectOption('#shapeType', type);
+  await page.check('#shapeCutout');
+  await drawShapeOf(type, from, to);
+  await page.keyboard.press('r');
+  await page.uncheck('#shapeCutout');
+  await page.keyboard.press('Escape');
+}
+
+test('くり抜きの図形は, すぐ下の白地に穴を開け, 下の画像を見せる', async () => {
+  await page.click('#addPaper');
+  await page.keyboard.press('Escape');
+  await drawCutout('rect', [0.3, 0.3], [0.7, 0.7]);
+  assert.deepEqual(await layerNames(), ['長方形・くり抜き', '白地']);
+  const [hole, paper] = await resultPixels([[0.5, 0.5], [0.1, 0.9]]);
+  assert.ok(near(hole, BLACK), `穴から下の画像が見える (実際: ${hole})`);
+  assert.ok(near(paper, [255, 255, 255]), `穴の外は白地 (実際: ${paper})`);
+});
+
+test('くり抜きはすぐ下の1つだけを抜く. 続けて重ねたくり抜きは, 同じ相手を抜く', async () => {
+  await page.click('#addPaper');
+  await page.keyboard.press('Escape');
+  await drawShapeOf('rect', [0.1, 0.1], [0.9, 0.9]);
+  await page.keyboard.press('Escape');
+  await drawCutout('ellipse', [0.2, 0.2], [0.4, 0.5]);
+  await drawCutout('rect', [0.6, 0.2], [0.8, 0.5]);
+  assert.deepEqual(await layerNames(), ['長方形・くり抜き', '楕円・くり抜き', '長方形・塗り', '白地']);
+  const [hole1, hole2, fill] = await resultPixels([[0.3, 0.35], [0.7, 0.35], [0.5, 0.7]]);
+  // 黄色の長方形だけが抜け, その下の白地が見える(白地までは抜けない).
+  assert.ok(near(hole1, [255, 255, 255]), `楕円の穴 (実際: ${hole1})`);
+  assert.ok(near(hole2, [255, 255, 255]), `長方形の穴 (実際: ${hole2})`);
+  assert.ok(near(fill, DEFAULT_FILL), `穴の外 (実際: ${fill})`);
+});
+
+test('いちばん下のくり抜きは, 抜く相手が無いので何も描かない. 編集パネルで付け外しできる', async () => {
+  await drawShapeOf('rect', [0.3, 0.3], [0.7, 0.7]);
+  assert.equal(await page.isVisible('#cutoutField'), true);
+  await page.check('#editCutout');
+  assert.equal(await page.isVisible('#cutoutNote'), true);
+  assert.deepEqual(await layerNames(), ['長方形・くり抜き']);
+  assert.ok(near((await resultPixels([[0.5, 0.5]]))[0], BLACK), '相手が無ければ, 何も変わらない');
+  await page.uncheck('#editCutout');
+  assert.deepEqual(await layerNames(), ['長方形・塗り']);
+  assert.ok(near((await resultPixels([[0.5, 0.5]]))[0], DEFAULT_FILL));
+});
+
+test('テキストのくり抜き(文字の形の穴)と, 窓のくり抜き(形の外側を消す)', async () => {
+  await page.click('#addPaper');
+  await page.keyboard.press('Escape');
+  await placeText([0.5, 0.5], 'MMMM');
+  await setRange('editTextSize', 80);
+  await page.check('#editTextTransparent');
+  await page.check('#editCutout');
+  assert.deepEqual((await layerNames())[0], 'MMMM・くり抜き');
+  await makeResult();
+  const dark = await page.evaluate(() => {
+    const d = document.getElementById('result').getContext('2d').getImageData(0, 0, 400, 300).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] < 30 && d[i + 1] < 30 && d[i + 2] < 30) n += 1;
+    return n;
+  });
+  assert.ok(dark > 500, `文字の形に, 下の黒い画像が見える (${dark} px)`);
+
+  // 窓のくり抜きは, 形の内側だけを残す.
+  await page.keyboard.press('Escape');
+  await page.locator('#layerList [data-act=delete]').nth(0).click();
+  await page.keyboard.press('r');
+  await page.selectOption('#shapeStyle', 'window');
+  await drawCutout('rect', [0.3, 0.3], [0.7, 0.7]);
+  const [inside, outside] = await resultPixels([[0.5, 0.5], [0.1, 0.9]]);
+  assert.ok(near(inside, [255, 255, 255]), `内側は白地が残る (実際: ${inside})`);
+  assert.ok(near(outside, BLACK), `外側は抜ける (実際: ${outside})`);
+});
+
+test('モザイクをくり抜くと, 穴の部分は加工前の画像が見える', async () => {
+  // 左上の赤い四角(0〜50px)にかかるモザイク(1マス40px). 40〜80px のマスは暗い赤になる.
+  await drawShapeOf('mosaic', [0, 0], [0.25, 1 / 3]);
+  await setRange('editStrength', 40);
+  await page.keyboard.press('Escape');
+  await drawCutout('rect', [41 / 400, 5 / 300], [70 / 400, 35 / 300]);
+  const [red, black, mosaic] = await resultPixels([[45.5 / 400, 20.5 / 300], [60.5 / 400, 20.5 / 300], [75.5 / 400, 20.5 / 300]]);
+  assert.ok(near(red, [255, 0, 0]), `穴の中の赤は, 加工前のまま (実際: ${red})`);
+  assert.ok(near(black, BLACK), `穴の中の黒も, 加工前のまま (実際: ${black})`);
+  assert.ok(mosaic[0] > 20 && mosaic[0] < 120, `穴の外はモザイク (実際: ${mosaic})`);
+});
+
+test('ペイントレイヤーもくり抜け, くり抜きは編集データ(形式 v9)に保存される', async () => {
+  await page.click('#addPaint');
+  await page.$eval('#penWidth', (el) => { el.value = '60'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+  await drawPen([[0.1, 0.5], [0.9, 0.5]]);
+  await page.keyboard.press('Escape');
+  await drawCutout('ellipse', [0.4, 0.3], [0.6, 0.7]);
+  const [hole, line] = await resultPixels([[0.5, 0.5], [0.2, 0.5]]);
+  assert.ok(near(hole, BLACK), `線に穴 (実際: ${hole})`);
+  assert.ok(near(line, RED), `穴の外の線 (実際: ${line})`);
+  const file = await saveProjectToFile();
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 9);
+  assert.equal(saved.document.objects[1].cutout, true);
+  await page.keyboard.press('Escape');
+  await page.click('#clearObjects');
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.deepEqual(await layerNames(), ['楕円・くり抜き', 'ペイント（1 本）']);
+  assert.ok(near((await resultPixels([[0.5, 0.5]]))[0], BLACK));
 });

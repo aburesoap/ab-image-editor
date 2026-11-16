@@ -1,6 +1,6 @@
 # プライバシーポリシー（iMage Editor Web 版）
 
-最終更新: 2026年11月16日（v2.1.0 時点）
+最終更新: 2026年11月16日（v2.1.1 時点）
 
 iMage Editor Web 版（以下「本サイト」）は, GitHub Pages で公開している画像編集・注釈ツールです. 開いた画像や編集内容は, ブラウザの中で処理し, サーバーへ送信しません. ただし, 本サイトを開くときの通信と, 外部サイトからの読み込みがあるため, 「端末の外へ一切通信しない」ものではありません.
 
@@ -15,13 +15,20 @@ iMage Editor Web 版（以下「本サイト」）は, GitHub Pages で公開し
 
 ### 本サイトを開くとき（公開先のアクセスの記録）
 
-本サイトのファイル（HTML, スクリプト, フォント, アイコンなど）は, GitHub Pages から配信されます. ファイルを取得する際, 一般的なウェブサイトと同様に, IPアドレス, ブラウザの種類, アクセス日時などが GitHub に送られ, 記録されることがあります. この記録は GitHub が管理しており, 本サイトの作者は参照しません. 詳しくは [GitHub のプライバシーに関する声明](https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement) を参照してください.
+本サイトのファイル（HTML, スクリプト, アイコンなど）は, GitHub Pages から配信されます. ファイルを取得する際, 一般的なウェブサイトと同様に, IPアドレス, ブラウザの種類, アクセス日時などが GitHub に送られ, 記録されることがあります. この記録は GitHub が管理しており, 本サイトの作者は参照しません. 詳しくは [GitHub のプライバシーに関する声明](https://docs.github.com/ja/site-policy/privacy-policies/github-general-privacy-statement) を参照してください.
 
 ### 外部サイトからの読み込み
 
 本サイトの設定（Content Security Policy）は, https の外部サイトからフォント・画像・スタイルを読み込むことを許可しています. 外部サイトから読み込むと, そのサイトに IPアドレスやブラウザの種類などが伝わります.
 
-v2.1.0 の時点で, 本サイトが外部サイトから読み込むものはありません（フォントはすべて本サイトから配信しています）. 外部サイトから読み込む機能を加えた場合は, 読み込み先をここに記載します. 外部のスクリプトは, 設定で読み込みを禁止しています.
+v2.1.1 の時点で, 本サイトが外部サイトから読み込むものは, 次のフォントだけです. 本サイトを開いたとき, またはそのフォントのテキストを置いたときに読み込みます. 読み込み先には, IPアドレス, ブラウザの種類, 本サイトから読み込んだこと（参照元）などが伝わります. 開いた画像や, 入力した文字の内容は送られません（日本語のフォントは文字のまとまりごとに小分けで配られるため, どのまとまりを取得したかは読み込み先に伝わります）.
+
+| 読み込み先 | 運営 | 読み込むもの |
+|---|---|---|
+| `fonts.googleapis.com`, `fonts.gstatic.com` | Google（[Google Fonts のプライバシーに関する説明](https://developers.google.com/fonts/faq/privacy?hl=ja)） | IBM Plex Sans JP |
+| `cdn.jsdelivr.net` | jsDelivr（[プライバシーポリシー](https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net)） | IBM Plex Math, UDEV Gothic |
+
+読み込み先を増やした場合は, この表に記載します. フォントを読み込めない場合は, 端末内のフォントで表示します. 外部のスクリプトは, 設定で読み込みを禁止しています.
 
 ## 端末に保存する情報
 
@@ -48,7 +55,7 @@ v2.1.0 の時点で, 本サイトが外部サイトから読み込むものは�
 
 # Privacy Policy (iMage Editor Web)
 
-Last updated: November 16, 2026 (as of v2.1.0)
+Last updated: November 16, 2026 (as of v2.1.1)
 
 iMage Editor Web ("the site") is an image editing and annotation tool published on GitHub Pages. Images you open and your edits are processed inside your browser and are never sent to any server. However, because the site itself is downloaded over the network and may load content from other sites, it is not a "no network at all" tool.
 
@@ -63,13 +70,20 @@ If you work with confidential images, we recommend the [browser extension versio
 
 ### Opening the site (access logs on the host)
 
-The site's files (HTML, scripts, fonts, icons, etc.) are served by GitHub Pages. As with any website, your IP address, browser type, and access time may be sent to and logged by GitHub when these files are requested. These logs are managed by GitHub and are not accessed by the author. See the [GitHub General Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for details.
+The site's files (HTML, scripts, icons, etc.) are served by GitHub Pages. As with any website, your IP address, browser type, and access time may be sent to and logged by GitHub when these files are requested. These logs are managed by GitHub and are not accessed by the author. See the [GitHub General Privacy Statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) for details.
 
 ### Loading content from other sites
 
 The site's Content Security Policy allows fonts, images, and stylesheets to be loaded from other sites over https. When such content is loaded, that site receives your IP address, browser type, and similar information.
 
-As of v2.1.0, the site loads nothing from other sites (all fonts are served by the site itself). If a feature that loads content from other sites is added, the sources will be listed here. Scripts from other sites are blocked by the policy.
+As of v2.1.1, the only content the site loads from other sites is the fonts below. They are loaded when you open the site, or when you place text that uses the font. The font host receives your IP address, browser type, and the fact that the request came from this site (the referrer). Your images and the text you type are not sent (Japanese fonts are served in small chunks of characters, so the host can see which chunks were requested).
+
+| Host | Operator | What is loaded |
+|---|---|---|
+| `fonts.googleapis.com`, `fonts.gstatic.com` | Google ([Google Fonts privacy FAQ](https://developers.google.com/fonts/faq/privacy)) | IBM Plex Sans JP |
+| `cdn.jsdelivr.net` | jsDelivr ([privacy policy](https://www.jsdelivr.com/terms/privacy-policy-jsdelivr-net)) | IBM Plex Math, UDEV Gothic |
+
+If more sources are added, they will be listed in this table. If a font cannot be loaded, fonts installed on your device are used instead. Scripts from other sites are blocked by the policy.
 
 ## Information stored on your device
 

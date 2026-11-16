@@ -51,7 +51,7 @@ function drawSource(ctx, width, height, cropRect) {
 }
 
 // 切り抜き範囲を基準に, 元画像・オブジェクト(背面から順)の順で指定のcontextへ重ねて描く.
-function renderComposite(ctx, width, height, cropRect) {
+export function renderComposite(ctx, width, height, cropRect) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
   drawSource(ctx, width, height, cropRect);

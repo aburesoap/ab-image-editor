@@ -4,8 +4,8 @@ import { $, rctx, result, setStatus } from './dom.js';
 import { objects, state } from './state.js';
 import { cropPixels, getDimensions, sourceSize } from './geometry.js';
 import { loadFontsFor } from './text.js';
-import { buildCompositeCanvas } from './render.js';
-import { readConversionSettings } from './settings.js';
+import { buildCompositeCanvas, renderComposite } from './render.js';
+import { needsProcessing, readConversionSettings } from './settings.js';
 import { updateStageView } from './stage.js';
 
 const RESULT_EMPTY_TEXT = '「仕上がりを作る」で, 書き出す画像を表示します';
@@ -56,13 +56,16 @@ export async function convertImage() {
   state.converting = true;
   invalidateResult();
   const version = state.resultVersion;
-  $('resultEmptyText').textContent = '変換中です…';
+  const processing = needsProcessing();
   setConvertBusy(true);
-  setStatus('変換中です…');
+  if (processing) {
+    $('resultEmptyText').textContent = '変換中です…';
+    setStatus('変換中です…');
+  }
 
   try {
-    // 状態表示を先に描画させる.
-    await new Promise((resolve) => window.setTimeout(resolve, 30));
+    // 状態表示を先に描画させる(加工が無ければすぐ終わるので, 待たない).
+    if (processing) await new Promise((resolve) => window.setTimeout(resolve, 30));
 
     // canvasの文字は, フォントが未読み込みだと代替フォントで描かれる. 先に読み込んでおく.
     await loadFontsFor(objects);
@@ -80,6 +83,17 @@ export async function convertImage() {
       w: cropPx.w / size.w,
       h: cropPx.h / size.h,
     };
+    if (!processing) {
+      // 色調整も減色も無ければ, 画素を取り出さず, 仕上がりのcanvasへ直接描く(Workerを通さない).
+      if (version !== state.resultVersion) return false;
+      result.width = w;
+      result.height = h;
+      renderComposite(rctx, w, h, cropRect);
+      state.resultProbe = probeCanvas(result);
+      state.converted = true;
+      updateStageView();
+      return true;
+    }
     const composite = buildCompositeCanvas(w, h, cropRect);
     const imageData = composite.getContext('2d', { willReadFrequently: true }).getImageData(0, 0, w, h);
     // 合成用のcanvasは不要になったので, すぐにメモリを返す.

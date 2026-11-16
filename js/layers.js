@@ -15,6 +15,7 @@ const ICONS = {
   unlock: [['rect', { x: 5, y: 11, width: 14, height: 9 }], ['path', { d: 'M8 11V8a4 4 0 0 1 7.6-1.8' }]],
   up: [['path', { d: 'M6 15l6-7 6 7z', class: 'solid' }]],
   down: [['path', { d: 'M6 9l6 7 6-7z', class: 'solid' }]],
+  trash: [['path', { d: 'M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6M14 11v6' }]],
 };
 
 // 前回描いた内容. 変わっていなければ, 一覧を作り直さない(ドラッグ中は毎フレーム呼ばれるため).
@@ -76,6 +77,20 @@ function stepButton(act, iconName, label, disabled) {
   return button;
 }
 
+// その行のオブジェクトを消すボタン. ロック中は, 誤って消さないよう押せない.
+function deleteButton(locked) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'layer-icon layer-delete';
+  button.dataset.act = 'delete';
+  const label = locked ? 'ロック中は削除できません' : '削除';
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.disabled = locked;
+  button.append(icon('trash'));
+  return button;
+}
+
 function buildRow(obj, index) {
   const row = document.createElement('li');
   row.className = 'layer-row';
@@ -116,6 +131,7 @@ function buildRow(obj, index) {
     stepButton('down', 'down', 'ひとつ背面へ', index === 0),
     toggleButton('visible', !obj.hidden, 'eye', 'eyeOff', obj.hidden ? '表示する' : '隠す'),
     toggleButton('lock', Boolean(obj.locked), 'lock', 'unlock', obj.locked ? 'ロックを解除' : 'ロックする'),
+    deleteButton(Boolean(obj.locked)),
   );
   return row;
 }

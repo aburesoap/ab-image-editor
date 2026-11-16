@@ -1,8 +1,6 @@
 // 選択中のオブジェクトの編集パネル. 欄への表示と, 触った項目の反映.
 
 import {
-  FONT_KEYS,
-  FONT_WEIGHTS,
   TEXT_MAX_PX,
   TEXT_MIN_PX,
   geometryFields,
@@ -11,6 +9,7 @@ import {
 } from './constants.js';
 import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
+import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
 import { isLineType, isText, moveObject, objectCenter, refWidth } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
@@ -35,6 +34,17 @@ function updateInspectorLabels() {
   $('editTextSizeVal').textContent = `${$('editTextSize').value} px`;
   $('editOpacityVal').textContent = `${$('editOpacity').value}%`;
   $('editLineWidthVal').textContent = `${$('editLineWidth').value} px`;
+}
+
+// フォントと太さの選択肢は, フォントの一覧(fonts.js)から作る.
+$('editTextFont').replaceChildren(...FONT_KEYS.map((key) => new Option(TEXT_FONTS[key].label, key)));
+$('editTextWeight').replaceChildren(...FONT_WEIGHTS.map((weight) => new Option(WEIGHT_LABELS[weight], String(weight))));
+
+// 太さの選択肢を, そのフォントで使えるものだけ選べるようにする. 1つしか無ければ, 欄ごと無効にする.
+function syncWeightOptions(fontKey) {
+  const usable = fontWeights(fontKey);
+  [...$('editTextWeight').options].forEach((option) => { option.disabled = !usable.includes(Number(option.value)); });
+  $('editTextWeight').disabled = usable.length < 2;
 }
 
 export function updateSelectionInspector() {
@@ -71,9 +81,8 @@ export function updateSelectionInspector() {
     const sizePx = Math.max(TEXT_MIN_PX, Math.min(TEXT_MAX_PX, Math.round(obj.size * refWidth())));
     $('editTextSize').value = sizePx;
     $('editTextFont').value = obj.font;
+    syncWeightOptions(obj.font);
     $('editTextWeight').value = String(obj.weight);
-    // UDEV Gothicは標準の太さのみ同梱している.
-    $('editTextWeight').disabled = obj.font === 'udev';
   } else {
     setNumber('editWidth', Math.abs(obj.x2 - obj.x1) * 100);
     setNumber('editHeight', Math.abs(obj.y2 - obj.y1) * 100);
@@ -154,13 +163,14 @@ export function applyInspector() {
     }
     if (touched('editTextFont') && FONT_KEYS.includes($('editTextFont').value)) {
       obj.font = $('editTextFont').value;
-      if (obj.font === 'udev') obj.weight = 400;
+      // 選んだフォントに今の太さが無ければ, 最も近い太さに直す.
+      obj.weight = nearestWeight(obj.font, obj.weight);
       last.font = obj.font;
       last.weight = obj.weight;
     }
-    if (touched('editTextWeight') && obj.font !== 'udev') {
+    if (touched('editTextWeight')) {
       const weight = Number($('editTextWeight').value);
-      if (FONT_WEIGHTS.includes(weight)) {
+      if (fontWeights(obj.font).includes(weight)) {
         obj.weight = weight;
         last.weight = weight;
       }

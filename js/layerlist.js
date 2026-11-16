@@ -1,9 +1,9 @@
-// レイヤー一覧の操作. 行を押して選択, 目と錠前で表示とロックの切り替え, つまみのドラッグで重ね順を変更.
+// レイヤー一覧の操作. 行を押して選択, 目と錠前で表示とロックの切り替え, ごみ箱で削除, つまみのドラッグで重ね順を変更.
 // 一覧は前面のものが上なので, 行の位置(上から)とオブジェクトの添字(背面から)は逆順になる.
 
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
-import { moveObjectTo, selectObject, toggleHidden, toggleLocked } from './actions.js';
+import { deleteObjectAt, moveObjectTo, selectObject, toggleHidden, toggleLocked } from './actions.js';
 
 const list = $('layerList');
 // ドラッグ中に一覧の端へ近づいたとき, 自動でスクロールする範囲(px)と速さ.
@@ -21,6 +21,12 @@ list.addEventListener('click', (event) => {
   const act = button.dataset.act;
   if (act === 'visible') toggleHidden(index);
   else if (act === 'lock') toggleLocked(index);
+  else if (act === 'delete') {
+    deleteObjectAt(index);
+    // 続けて消せるよう, 同じ位置に来た行(無ければ1つ上の行)の削除ボタンへ焦点を移す.
+    const next = list.querySelector(`.layer-row[data-index="${index}"]`) || list.querySelector(`.layer-row[data-index="${index - 1}"]`);
+    next?.querySelector('[data-act="delete"]')?.focus({ preventScroll: true });
+  }
   else if (act === 'up' || act === 'down') {
     const to = index + (act === 'up' ? 1 : -1);
     moveObjectTo(index, to);

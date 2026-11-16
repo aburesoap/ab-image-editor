@@ -1,8 +1,6 @@
 // 編集データ(プロジェクト)の保存と読み込み.
 
 import {
-  FONT_KEYS,
-  FONT_WEIGHTS,
   MAX_OBJECTS,
   MIN_CROP,
   PROJECT_FORMAT,
@@ -16,6 +14,7 @@ import {
 import { colorOr, finite, limited } from './validate.js';
 import { $, downloadBlob, setStatus } from './dom.js';
 import { newObjectId, state } from './state.js';
+import { FONT_KEYS, nearestWeight } from './fonts.js';
 import { ROTATIONS, isLineType, refWidth } from './geometry.js';
 import { markSaved, resetHistory, restoreSnapshot, snapshot } from './history.js';
 
@@ -56,7 +55,8 @@ function sanitizeShape(raw) {
 // ref は, 読み込む画像の向きでの基準幅(文字サイズの範囲の換算に使う).
 function sanitizeText(raw, ref) {
   const font = FONT_KEYS.includes(raw.font) ? raw.font : TEXT_DEFAULTS.font;
-  const weight = FONT_WEIGHTS.includes(Number(raw.weight)) ? Number(raw.weight) : TEXT_DEFAULTS.weight;
+  // そのフォントに無い太さは, 最も近い太さに直す.
+  const weight = nearestWeight(font, raw.weight ?? TEXT_DEFAULTS.weight);
   return {
     id: newObjectId(),
     type: 'text',
@@ -66,7 +66,7 @@ function sanitizeText(raw, ref) {
     transparent: Boolean(raw.transparent),
     size: limited(raw.size, TEXT_DEFAULTS.sizePx / ref, TEXT_MIN_PX / ref, TEXT_MAX_PX / ref),
     font,
-    weight: font === 'udev' ? 400 : weight,
+    weight,
     opacity: limited(raw.opacity, 1, 0, 1),
     rotation: limited(raw.rotation, 0, -180, 180),
     hidden: raw.hidden === true,
@@ -81,36 +81,13 @@ function sanitizeObject(raw, ref) {
   return raw.type === 'text' ? sanitizeText(raw, ref) : sanitizeShape(raw);
 }
 
-// v1.1.x以前の編集データは, 文字が1つだけ別枠で保存されている. 内容があれば1つのテキストへ変換する.
-function migrateLegacyText(raw, ref) {
-  if (!raw || typeof raw !== 'object' || typeof raw.content !== 'string' || !raw.content.trim()) return null;
-  return sanitizeText({
-    type: 'text',
-    content: raw.content,
-    color: raw.color,
-    bg: raw.bg,
-    transparent: raw.transparent,
-    size: limited(raw.size, TEXT_DEFAULTS.sizePx, TEXT_MIN_PX, TEXT_MAX_PX) / ref,
-    x: limited(raw.x, 50, 0, 100) / 100,
-    y: limited(raw.y, 80, 0, 100) / 100,
-  }, ref);
-}
-
 function sanitizeDocument(raw) {
   if (!raw || typeof raw !== 'object' || !raw.crop || typeof raw.crop !== 'object') throw new Error('invalid project');
-  // v1.4.1以前のデータには向きが無いため, 回転なしとして扱う.
+  // 図形とテキストを1つの配列で持つ形式(拡張機能版 v1.2.0 以降, Web 版)だけを読む. それより前の形式には対応しない.
+  if (!Array.isArray(raw.objects)) throw new Error('invalid project');
   const rotation = ROTATIONS.includes(raw.rotation) ? raw.rotation : 0;
   const ref = refWidth(rotation);
-  let list;
-  if (Array.isArray(raw.objects)) {
-    list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref)).filter(Boolean);
-  } else if (Array.isArray(raw.shapes)) {
-    list = raw.shapes.slice(0, MAX_OBJECTS).map(sanitizeShape).filter(Boolean);
-    const legacyText = migrateLegacyText(raw.text, ref);
-    if (legacyText) list.push(legacyText);
-  } else {
-    throw new Error('invalid project');
-  }
+  const list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref)).filter(Boolean);
   const w = limited(raw.crop.w, 1, MIN_CROP, 1);
   const h = limited(raw.crop.h, 1, MIN_CROP, 1);
   return {

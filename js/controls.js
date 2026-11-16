@@ -5,7 +5,7 @@ import { rotateImage } from './rotate.js';
 import { $, setStatus } from './dom.js';
 import { state } from './state.js';
 import { drawEditor } from './render.js';
-import { syncGrayscaleButton, updateLabels } from './settings.js';
+import { syncGrayscaleButton, updateLabels, needsProcessing } from './settings.js';
 import { convertImage, invalidateResult } from './convert.js';
 import { applyInspector, updateSelectionInspector } from './inspector.js';
 import { initColorField } from './colorpicker.js';
@@ -83,9 +83,9 @@ $('grayscale').addEventListener('click', () => {
   state.grayscale = !state.grayscale;
   syncGrayscaleButton();
   pushHistory();
-  // グレースケールは, 切り替えた時点で変換して, 仕上がりを表示する.
+  // グレースケールは, 切り替えた時点で変換して, 仕上がりを表示する(加工が何も無くなったときは, 編集の表示へ戻る).
   invalidateResult();
-  setView('result');
+  setView(needsProcessing() ? 'result' : 'edit');
 });
 
 $('reset').addEventListener('click', () => {

@@ -1,12 +1,5 @@
 // 定数. 各モジュールから共通で使う設定値や, 画面要素のid一覧.
 
-// canvas描画用のフォント. studio.css の --font-sans と揃える.
-export const FONT_STACKS = {
-  plex: '"IBM Plex Sans JP", "Hiragino Sans", "Yu Gothic UI", Meiryo, system-ui, sans-serif',
-  udev: '"UDEV Gothic", ui-monospace, "SFMono-Regular", Consolas, "Noto Sans Mono CJK JP", monospace',
-};
-export const FONT_KEYS = Object.keys(FONT_STACKS);
-export const FONT_WEIGHTS = [400, 600, 700];
 export const FULL_CROP = Object.freeze({ x: 0, y: 0, w: 1, h: 1 });
 export const MIN_CROP = 0.03;
 export const HISTORY_LIMIT = 80;
@@ -37,7 +30,7 @@ export const MIN_SHAPE_SIDE = 4;
 // 文字サイズの範囲(UI上のpx). 編集パネルのスライダーの範囲と揃える.
 export const TEXT_MIN_PX = 8;
 export const TEXT_MAX_PX = 200;
-// 文字の見た目の中心が, ベースラインより何em上にあるか. 同梱フォントの「あ」「日」「H」の実測値(0.36〜0.39)に合わせている.
+// 文字の見た目の中心が, ベースラインより何em上にあるか. 標準のフォント(IBM Plex Sans JP, UDEV Gothic)の「あ」「日」「H」の実測値(0.36〜0.39)に合わせている.
 export const TEXT_INK_CENTER = 0.37;
 export const TEXT_DEFAULTS = {
   content: 'テキスト', color: '#ffffff', bg: '#202020', transparent: false, sizePx: 24, font: 'plex', weight: 600,

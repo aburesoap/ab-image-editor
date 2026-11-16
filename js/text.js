@@ -1,13 +1,14 @@
 // テキストの配置計算と描画, フォントの読み込み.
 
-import { FONT_STACKS, TEXT_INK_CENTER } from './constants.js';
+import { TEXT_INK_CENTER } from './constants.js';
+import { ensureFont, fontStack } from './fonts.js';
 import { isText, mapPointToCanvas } from './geometry.js';
 
 // 文字の大きさ計測用. 描画先と同じフォントを設定して使う.
 const measureCtx = document.createElement('canvas').getContext('2d');
 
 function textFont(obj, fontSize) {
-  return `${obj.weight} ${fontSize}px ${FONT_STACKS[obj.font] || FONT_STACKS.plex}`;
+  return `${obj.weight} ${fontSize}px ${fontStack(obj.font)}`;
 }
 
 // 文字の配置と, それを囲むボックスの大きさ. ボックスは文字から自動で決まる.
@@ -52,6 +53,7 @@ export function drawText(ctx, width, height, obj, cropRect) {
 }
 
 // 使われているフォントを先に読み込む. 未読み込みのまま描くと, 代替フォントで描かれてしまう.
+// 読み込めなかった場合は, 端末内のフォントで描く.
 export function loadFontsFor(list) {
   if (!document.fonts) return Promise.resolve();
   const wanted = new Map();
@@ -61,6 +63,9 @@ export function loadFontsFor(list) {
   });
   return Promise.all([...wanted].map(([key, text]) => {
     const [weight, font] = key.split('|');
-    return document.fonts.load(`${weight} 24px ${FONT_STACKS[font] || FONT_STACKS.plex}`, text).catch((error) => console.warn(error));
+    // フォントの定義が登録されてから, 使う文字の分のファイルを読み込む.
+    return ensureFont(font)
+      .then(() => document.fonts.load(`${weight} 24px ${fontStack(font)}`, text))
+      .catch((error) => console.warn(error));
   })).then(() => undefined);
 }

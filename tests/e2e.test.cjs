@@ -14,14 +14,18 @@ const ROOT = path.resolve(__dirname, '..');
 const ORIGIN = 'https://app.test';
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json',
-  '.woff': 'font/woff', '.woff2': 'font/woff2', '.png': 'image/png',
+  '.png': 'image/png',
 };
 // 黄色の長方形(既定の塗り色)が見分けやすいよう, 真っ黒な画像を使う.
 const IMAGE_W = 400;
 const IMAGE_H = 300;
 const DEFAULT_FILL = [0xf4, 0xc9, 0x5d];
 
+// フォントの読み込み先(js/fonts.js).
+const FONT_HOSTS = /^https:\/\/(fonts\.googleapis\.com|fonts\.gstatic\.com|cdn\.jsdelivr\.net)\//;
+
 let browser;
+let fontRequests;
 let page;
 let errors;
 let tmpDir;
@@ -42,7 +46,16 @@ beforeEach(async () => {
   page = await context.newPage();
   errors = [];
   page.on('pageerror', (error) => errors.push(String(error)));
-  page.on('console', (message) => { if (message.type() === 'error') errors.push(message.text()); });
+  // フォントは外部サイトから読み込む. テストでは通信させず, 読み込めない場合(端末内のフォントで表示)として動かす.
+  // 読み込めなかったことを知らせるコンソールのエラーは, 意図どおりなので数えない.
+  fontRequests = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error' && !FONT_HOSTS.test(message.location().url || '')) errors.push(message.text());
+  });
+  await page.route(FONT_HOSTS, (route) => {
+    fontRequests.push(route.request().url());
+    return route.abort();
+  });
   await page.route(`${ORIGIN}/**`, (route) => {
     const file = path.join(ROOT, decodeURIComponent(new URL(route.request().url()).pathname));
     if (!file.startsWith(ROOT) || !fs.existsSync(file)) return route.fulfill({ status: 404, body: '' });
@@ -110,10 +123,17 @@ const selectedName = () => page.textContent('#selectedObjectName');
 const objectCount = () => page.locator('#layerList .layer-row').count();
 const status = () => page.textContent('#status');
 
+// 仕上がり(書き出す画像)を作る. 色調整も減色も無いときは「仕上がり」の表示が無いため, 保存・コピーと同じ処理を直接呼ぶ.
+async function makeResult() {
+  await page.evaluate(async () => {
+    const { convertImage } = await import(`${location.origin}/js/convert.js`);
+    await convertImage();
+  });
+}
+
 // 仕上がりの1画素を読む. 減色は既定でOFFなので, 合成した色がそのまま出る.
 async function resultPixel(fx, fy) {
-  await page.click('#viewResult');
-  await page.waitForFunction(() => !document.getElementById('result').hidden);
+  await makeResult();
   return page.evaluate(([x, y]) => {
     const canvas = document.getElementById('result');
     const ctx = canvas.getContext('2d');
@@ -173,7 +193,6 @@ test('非表示にした図形は, 変換結果に描かれない', async () => 
   await drawRect([0.2, 0.2], [0.5, 0.5]);
   assert.ok(near(await resultPixel(0.35, 0.35), DEFAULT_FILL), '表示中は長方形の色になる');
 
-  await page.click('#viewEdit');
   await page.click('#tabProps');
   await page.locator('#layerList [data-act=visible]').nth(0).click();
   assert.match((await layerClasses())[0], /is-hidden/);
@@ -294,7 +313,6 @@ test('画像を右へ90°回すと, 図形と切り抜き範囲も一緒に回�
   assert.ok(near(await resultPixel(255 / 300, 80 / 400), DEFAULT_FILL), '長方形も一緒に回る');
 
   // 元に戻すと, 向きも戻る.
-  await page.click('#viewEdit');
   await page.keyboard.press('Control+z');
   assert.equal(await page.$eval('#original', (el) => `${el.width}x${el.height}`), '400x300');
   assert.ok(near(await resultPixel(80 / 400, 45 / 300), DEFAULT_FILL));
@@ -517,8 +535,7 @@ test('切り抜き範囲は, 図形と同じ8か所のハンドルで, どの辺
   await page.mouse.down();
   await page.mouse.move(b.x, b.y + 1, { steps: 5 });
   await page.mouse.up();
-  await page.click('#viewResult');
-  await page.waitForFunction(() => !document.getElementById('result').hidden);
+  await makeResult();
   const size = await page.$eval('#result', (el) => [el.width, el.height]);
   assert.ok(Math.abs(size[0] - 300) <= 2 && Math.abs(size[1] - 200) <= 2, `仕上がりは約300×200px (実際: ${size})`);
 });
@@ -538,10 +555,15 @@ test('ファビコンが設定され, アイコンの画像を読み込める', 
 test('CSP は外部サイトの画像とフォントを許可し, 外部のスクリプトは許可しない', async () => {
   const EXTERNAL = 'https://external.test';
   const png = await makeImage(8, 8);
+  let fontRequested = false;
   await page.route(`${EXTERNAL}/**`, (route) => {
     const url = route.request().url();
     if (url.endsWith('.png')) return route.fulfill({ status: 200, contentType: 'image/png', body: png });
-    if (url.endsWith('.woff')) return route.fulfill({ status: 200, contentType: 'font/woff', body: fs.readFileSync(path.join(ROOT, 'fonts/UDEVGothic-Regular.woff')) });
+    if (url.endsWith('.woff2')) {
+      // フォントは同梱していないので, 中身は空で返す. CSP で止められずに, 取りに行けることだけを確かめる.
+      fontRequested = true;
+      return route.fulfill({ status: 200, contentType: 'font/woff2', body: '' });
+    }
     return route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.__externalScript = true;' });
   });
   const result = await page.evaluate(async (origin) => {
@@ -553,7 +575,7 @@ test('CSP は外部サイトの画像とフォントを許可し, 外部のス�
       img.onerror = () => resolve('error');
       img.src = `${origin}/sample.png`;
     });
-    const font = await new FontFace('ExternalTest', `url(${origin}/sample.woff)`).load().then(() => 'loaded', () => 'error');
+    await new FontFace('ExternalTest', `url(${origin}/sample.woff2)`).load().catch(() => {});
     await new Promise((resolve) => {
       const script = document.createElement('script');
       script.onload = resolve;
@@ -562,10 +584,11 @@ test('CSP は外部サイトの画像とフォントを許可し, 外部のス�
       document.head.append(script);
     });
     await new Promise((resolve) => setTimeout(resolve, 50));
-    return { image, font, script: window.__externalScript === true, violations };
+    return { image, script: window.__externalScript === true, violations };
   }, EXTERNAL);
   assert.equal(result.image, '8x8', '外部の画像は読み込める');
-  assert.equal(result.font, 'loaded', '外部のフォントは読み込める');
+  assert.equal(fontRequested, true, '外部のフォントを取りに行ける');
+  assert.equal(result.violations.some((directive) => directive.startsWith('font-src')), false, 'フォントは CSP で止められない');
   assert.equal(result.script, false, '外部のスクリプトは実行されない');
   assert.ok(result.violations.some((directive) => directive.startsWith('script-src')), 'スクリプトは CSP で止められる');
   // 外部のスクリプトを止めたときのコンソールのエラーは, 意図どおりなので除く.
@@ -575,8 +598,7 @@ test('CSP は外部サイトの画像とフォントを許可し, 外部のス�
 // ---- v2.1.0 ----
 // 仕上がりの複数の画素を読む. 位置は画像上の割合(0〜1).
 async function resultPixels(points) {
-  await page.click('#viewResult');
-  await page.waitForFunction(() => !document.getElementById('result').hidden);
+  await makeResult();
   return page.evaluate((list) => {
     const canvas = document.getElementById('result');
     const ctx = canvas.getContext('2d');
@@ -705,4 +727,117 @@ test('貼り付けボタンは, クリップボードに画像が無ければ案
   await page.click('#pasteImage');
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('クリップボードに画像がありません'));
   assert.equal(await page.$eval('#original', (el) => el.width), 400, '画像はそのまま');
+});
+
+// ---- v2.1.1 ----
+test('レイヤー一覧のごみ箱で, その行だけを消せる. 選択は別のオブジェクトに付いたまま', async () => {
+  await drawRect([0.1, 0.1], [0.3, 0.3]);
+  await page.keyboard.press('Escape');
+  await placeText([0.6, 0.6], '残す');
+  await page.keyboard.press('Escape');
+  await drawShapeOf('star', [0.5, 0.1], [0.7, 0.3]);
+  // 一覧は前面が上: 星, テキスト, 長方形. テキストを選んだまま, 星を消す.
+  await page.locator('#layerList .layer-main').nth(1).click();
+  await page.locator('#layerList [data-act=delete]').nth(0).click();
+  assert.deepEqual(await layerNames(), ['残す', '長方形・塗り']);
+  assert.match(await selectedName(), /テキスト/);
+  // 選んでいるものを消すと, 選択が外れる.
+  await page.locator('#layerList [data-act=delete]').nth(0).click();
+  assert.deepEqual(await layerNames(), ['長方形・塗り']);
+  assert.equal(await page.isVisible('#propBody'), false);
+  // 元に戻せる.
+  await page.keyboard.press('Control+z');
+  assert.deepEqual(await layerNames(), ['残す', '長方形・塗り']);
+});
+
+test('ロック中の行は, ごみ箱を押せない', async () => {
+  await drawRect([0.1, 0.1], [0.3, 0.3]);
+  await page.locator('#layerList [data-act=lock]').nth(0).click();
+  assert.equal(await page.locator('#layerList [data-act=delete]').nth(0).isDisabled(), true);
+  await page.locator('#layerList [data-act=lock]').nth(0).click();
+  assert.equal(await page.locator('#layerList [data-act=delete]').nth(0).isDisabled(), false);
+});
+
+test('色調整も減色も無ければ「編集 / 仕上がり」の切り替えを出さず, 使うと出る', async () => {
+  assert.equal(await page.isVisible('#viewSwitch'), false);
+  await page.click('#tabFinish');
+  assert.equal(await page.isVisible('#showResult'), false);
+  await setRange('brightness', 40);
+  assert.equal(await page.isVisible('#viewSwitch'), true);
+  assert.equal(await page.isVisible('#showResult'), true);
+  // 仕上がりを表示したまま色調整を戻すと, 編集の表示へ戻る.
+  await page.click('#viewResult');
+  await page.waitForFunction(() => !document.getElementById('result').hidden);
+  await setRange('brightness', 0);
+  assert.equal(await page.isVisible('#viewSwitch'), false);
+  assert.equal(await page.isVisible('#original'), true);
+  // 減色でも出る.
+  await page.click('#advancedSettings > summary');
+  await page.check('#quantizeEnabled');
+  assert.equal(await page.isVisible('#viewSwitch'), true);
+});
+
+test('色調整が無ければ, 切り替えを通さずにそのまま保存でき, 図形も書き出される', async () => {
+  await drawRect([0.25, 0.25], [0.75, 0.75]);
+  // 保存先を選ぶ画面はテストでは操作できないため, ダウンロードとして保存させる.
+  await page.evaluate(() => { window.showSaveFilePicker = undefined; });
+  const [download] = await Promise.all([page.waitForEvent('download'), page.click('#download')]);
+  const file = path.join(tmpDir, `direct-${Date.now()}.png`);
+  await download.saveAs(file);
+  const pixels = await page.evaluate(async (base64) => {
+    const bitmap = await createImageBitmap(await (await fetch(`data:image/png;base64,${base64}`)).blob());
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    const at = (x, y) => [...ctx.getImageData(x, y, 1, 1).data.slice(0, 3)];
+    return { size: `${bitmap.width}x${bitmap.height}`, inside: at(200, 150), outside: at(380, 280), corner: at(10, 10) };
+  }, fs.readFileSync(file).toString('base64'));
+  assert.equal(pixels.size, '400x300');
+  assert.ok(near(pixels.inside, DEFAULT_FILL), `図形 (実際: ${pixels.inside})`);
+  assert.ok(near(pixels.outside, BLACK), `図形の外 (実際: ${pixels.outside})`);
+  assert.ok(near(pixels.corner, [255, 0, 0]), `元画像の左上 (実際: ${pixels.corner})`);
+});
+
+test('明るさを変えた仕上がりは, 編集中の見た目より明るくなる', async () => {
+  await setRange('brightness', 40);
+  assert.ok(near(await resultPixel(0.9, 0.9), [40, 40, 40]));
+});
+
+test('フォントは外部から読み込み, 選択肢はフォントの一覧から作る. 読み込めなくてもテキストを描ける', async () => {
+  // 起動時に, 画面用のフォントの読み込みを始めている(テストでは通信を止めている).
+  assert.ok(fontRequests.some((url) => url.startsWith('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP')), 'IBM Plex Sans JP');
+  assert.equal(await page.locator('link[rel=stylesheet][data-font=plex]').count(), 1);
+  const registry = await page.evaluate(async () => {
+    const fonts = await import(`${location.origin}/js/fonts.js`);
+    return { keys: fonts.FONT_KEYS, labels: fonts.FONT_KEYS.map((key) => fonts.TEXT_FONTS[key].label), https: fonts.FONT_KEYS.every((key) => {
+      const font = fonts.TEXT_FONTS[key];
+      return [font.css, ...Object.values(font.files || {})].filter(Boolean).every((url) => url.startsWith('https://'));
+    }) };
+  });
+  assert.equal(registry.https, true, '読み込み先は https だけ');
+
+  await placeText([0.5, 0.5], '注釈');
+  assert.deepEqual(await page.$$eval('#editTextFont option', (els) => els.map((el) => [el.value, el.textContent])), registry.keys.map((key, i) => [key, registry.labels[i]]));
+  // 太さが1つしか無いフォントでは, 太さを選べない. 戻すと選べる.
+  await page.selectOption('#editTextFont', 'udev');
+  assert.equal(await page.isDisabled('#editTextWeight'), true);
+  assert.equal(await page.inputValue('#editTextWeight'), '400');
+  await page.selectOption('#editTextFont', 'plex');
+  assert.equal(await page.isDisabled('#editTextWeight'), false);
+  // フォントを読み込めなくても, 端末内のフォントで文字が描かれる(背景色の箱が出る).
+  assert.ok(near(await resultPixel(0.5, 0.42), [0x20, 0x20, 0x20]) || near(await resultPixel(0.5, 0.45), [0x20, 0x20, 0x20]), 'テキストの背景');
+});
+
+test('図形とテキストを別々に持つ古い形式の編集データは, 読み込まずに案内を出す', async () => {
+  const file = path.join(tmpDir, `legacy-${Date.now()}.json`);
+  fs.writeFileSync(file, JSON.stringify({
+    format: 'iMage-Editor-project', version: 1, source: { width: IMAGE_W, height: IMAGE_H },
+    document: { crop: { x: 0, y: 0, w: 1, h: 1 }, shapes: [], text: { content: '古い' } },
+    conversion: {},
+  }));
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込めませんでした'));
+  assert.equal(await objectCount(), 0);
 });

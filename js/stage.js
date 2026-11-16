@@ -2,6 +2,7 @@
 import { $, original, result } from './dom.js';
 import { state } from './state.js';
 import { sourceSize } from './geometry.js';
+import { needsProcessing } from './settings.js';
 
 // ステージの余白(px)と, 全体表示で小さい画像を拡大するときの上限の倍率.
 const STAGE_MARGIN = 24;
@@ -136,6 +137,11 @@ export function panBy(dx, dy) {
 // 画像の読み込み状況と, 編集/仕上がりの表示に合わせて, 表示するキャンバスと案内を決める.
 export function updateStageView() {
   const loaded = Boolean(state.sourceImage);
+  // 色調整も減色も無ければ, 仕上がりは編集中の見た目と同じ. 切り替えを出さず, 編集の表示だけにする.
+  const processing = needsProcessing();
+  if (!processing) state.view = 'edit';
+  $('viewSwitch').hidden = !processing;
+  $('showResult').hidden = !processing;
   const resultView = state.view === 'result';
   $('emptyState').hidden = loaded;
   original.hidden = !loaded || resultView;

@@ -1,6 +1,7 @@
 // 起動処理. 各モジュールを読み込み, 初期表示を整える.
 
-import { FONT_STACKS, TEXT_DEFAULTS, sliders } from './constants.js';
+import { TEXT_DEFAULTS, sliders } from './constants.js';
+import { ensureFont, fontStack, loadStartupFonts } from './fonts.js';
 import { $ } from './dom.js';
 import { requestDraw } from './render.js';
 import { updateLabels } from './settings.js';
@@ -22,8 +23,11 @@ updateToolUI();
 updateStageView();
 observeStage();
 
+loadStartupFonts();
 if (document.fonts) {
   document.fonts.addEventListener('loadingdone', requestDraw);
   // 文字の描画に使う太さを先に読み込んでおく.
-  document.fonts.load(`${TEXT_DEFAULTS.weight} 16px ${FONT_STACKS.plex}`).catch(() => {});
+  ensureFont(TEXT_DEFAULTS.font)
+    .then(() => document.fonts.load(`${TEXT_DEFAULTS.weight} 16px ${fontStack(TEXT_DEFAULTS.font)}`, TEXT_DEFAULTS.content))
+    .catch(() => {});
 }

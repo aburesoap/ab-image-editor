@@ -128,18 +128,24 @@ export function toggleLocked(index) {
   pushHistory();
 }
 
-// ロック中のものは, 誤って消さないよう削除しない(ロックを解除してから削除する).
-export function deleteSelected() {
-  const obj = selectedObject();
+// 指定した添字のオブジェクトを消す. ロック中のものは, 誤って消さないよう削除しない(ロックを解除してから削除する).
+// 別のオブジェクトを選んでいた場合は, 選択をそのオブジェクトに付けたままにする.
+export function deleteObjectAt(index) {
+  const obj = objects[index];
   if (!obj) return;
   if (obj.locked) {
     setStatus('ロック中のため削除できません. レイヤー一覧の錠前で解除してください');
     return;
   }
-  objects.splice(state.selectedIndex, 1);
-  state.selectedIndex = -1;
+  const selected = selectedObject();
+  objects.splice(index, 1);
+  state.selectedIndex = selected && selected !== obj ? objects.indexOf(selected) : -1;
   updateSelectionInspector();
   commitChange();
+}
+
+export function deleteSelected() {
+  deleteObjectAt(state.selectedIndex);
 }
 
 export function duplicateSelected() {

@@ -36,6 +36,12 @@ export function readConversionSettings() {
   };
 }
 
+// 書き出す前に, 画素の加工(色調整・減色)が要るか. 要らなければ, 編集中の見た目をそのまま書き出せる.
+export function needsProcessing() {
+  const settings = readConversionSettings();
+  return settings.quantize || settings.grayscale || settings.brightness !== 0 || settings.contrast !== 100;
+}
+
 export function readConversionState() {
   return {
     maxSide: $('maxSide').value, colors: $('colors').value,

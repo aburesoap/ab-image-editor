@@ -5,6 +5,10 @@
 <!-- CSP: 外部サイトのフォント・画像・スタイルの読み込みは https なら許可する. スクリプトは自分自身のものだけ. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; worker-src 'self' blob:; style-src 'self' 'unsafe-inline' https:; font-src 'self' https: data:; img-src 'self' https: data: blob:; media-src 'self' https: data: blob:; connect-src 'self' https: data: blob:; object-src 'none'; base-uri 'self'; form-action 'none'">
 <title>iMage Editor</title>
+<!-- フォントの読み込み先へ, 先に接続しておく(フォントの一覧は js/fonts.js). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <meta name="description" content="パソコン中心の画像編集・注釈ツール. 図形・矢印・テキストの書き込み, 切り抜き・回転ができます">
 <link rel="icon" type="image/png" sizes="16x16" href="icons/icon16.png">
 <link rel="icon" type="image/png" sizes="48x48" href="icons/icon48.png">
@@ -82,7 +86,7 @@
 </nav>
 <main class="stage">
 <div class="stage-head">
-<div class="seg">
+<div id="viewSwitch" class="seg" hidden>
 <button id="viewEdit" class="seg-btn active" disabled>編集</button>
 <button id="viewResult" class="seg-btn" disabled>仕上がり</button>
 </div>
@@ -144,18 +148,11 @@
 <div class="field-row">
 <div>
 <label for="editTextFont">フォント</label>
-<select id="editTextFont">
-<option value="plex">IBM Plex Sans JP</option>
-<option value="udev">UDEV Gothic（等幅）</option>
-</select>
+<select id="editTextFont"></select>
 </div>
 <div>
 <label for="editTextWeight">太さ</label>
-<select id="editTextWeight">
-<option value="400">標準</option>
-<option value="600">中太</option>
-<option value="700">太字</option>
-</select>
+<select id="editTextWeight"></select>
 </div>
 </div>
 </div>
@@ -236,7 +233,7 @@
 <div><label for="contrast">コントラスト <span id="contrastVal" class="value">1.00</span></label><input id="contrast" type="range" min="50" max="180" value="100"></div>
 </div>
 <div class="button-row"><button id="grayscale" class="secondary" disabled aria-pressed="false">グレースケール OFF</button></div>
-<p class="setting-note">色調整は, 仕上がり（書き出す画像）にだけ反映されます</p>
+<p class="setting-note">色調整や減色を使うと, 作業領域の上に「編集 / 仕上がり」の切り替えが出ます. 効果は, 仕上がり（書き出す画像）にだけ反映されます</p>
 <details id="advancedSettings" class="fold">
 <summary>詳細設定（減色・出力サイズ）<span id="advancedState" class="fold-state"></span></summary>
 <div>
@@ -251,7 +248,7 @@
 </div>
 </details>
 <div class="button-row"><button id="reset" class="ghost">設定をリセット</button></div>
-<p class="footer-note">iMage Editor · 2026 aburesoap · 画像は端末の外へ送信されません</p>
+<p class="footer-note">iMage Editor · 2026 aburesoap · 画像は端末の外へ送信されません（フォントは外部サイトから読み込みます）</p>
 </section>
 </div>
 </aside>

@@ -1801,3 +1801,43 @@ test('選んだ線は Delete で消え(レイヤーは残る), Ctrl+A でレイ�
   await page.keyboard.press('Escape');
   assert.match(await selectedName(), /ペイント/);
 });
+
+// ---- v2.12.0 ----
+test('整列のガイド: 動かすと, ほかの図形の端や画像の中心にそろう位置へ吸い付く. オフや Alt では吸い付かない', async () => {
+  await drawRect([0.15, 0.2], [0.25, 0.3]);
+  await drawRect([0.3, 0.2], [0.4, 0.3]);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('v');
+  assert.equal(await page.isVisible('#optSelect'), true);
+  assert.equal(await page.isChecked('#guidesToggle'), true, '既定はオン');
+  // 吸い付く距離は画面上の6px(このテストの表示では, 画像上の約3px).
+  // 2つ目(120〜160px, 60〜90px)を, 左端 62px・上端 152px の位置へ動かす → 左端は1つ目の左端(60px)へ, 上端は画像の中心(150px)へ.
+  const drag = async (from, to, alt = false) => {
+    const a = await at(...from);
+    const b = await at(...to);
+    if (alt) await page.keyboard.down('Alt');
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 6 });
+    // 動かしている間は, ガイドの線を持つ.
+    const lines = await page.evaluate(async () => (await import(`${location.origin}/js/state.js`)).state.guideLines);
+    await page.mouse.up();
+    if (alt) await page.keyboard.up('Alt');
+    return lines;
+  };
+  const lines = await drag([140 / 400, 75 / 300], [82 / 400, 167 / 300]);
+  // 幅が同じなので, 左端・中心・右端の3本がそろう.
+  assert.deepEqual(lines, { x: [60, 80, 100], y: [150] });
+  assert.deepEqual((await framesPx())[1], [60, 150, 100, 180]);
+  // Alt を押している間は, 吸い付かない.
+  await page.click('#undo');
+  await drag([140 / 400, 75 / 300], [82 / 400, 167 / 300], true);
+  assert.deepEqual((await framesPx())[1], [62, 152, 102, 182]);
+  // オフにすると吸い付かず, 設定は開き直しても残る.
+  await page.click('#undo');
+  await page.uncheck('#guidesToggle');
+  await drag([140 / 400, 75 / 300], [82 / 400, 167 / 300]);
+  assert.deepEqual((await framesPx())[1], [62, 152, 102, 182]);
+  await page.reload();
+  assert.equal(await page.isChecked('#guidesToggle'), false);
+});

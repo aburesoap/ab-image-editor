@@ -36,6 +36,7 @@ export function updateToolUI() {
     $(id).classList.toggle('active', state.tool === tool);
     $(id).setAttribute('aria-pressed', String(state.tool === tool));
   });
+  $('optSelect').hidden = state.tool !== 'select';
   $('optCrop').hidden = state.tool !== 'crop';
   $('optShape').hidden = state.tool !== 'shape';
   $('optPen').hidden = state.tool !== 'pen';

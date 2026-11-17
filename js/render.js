@@ -103,6 +103,8 @@ export function drawEditor() {
   if (selected && state.tool === 'select') drawSelection(selected);
   // 複数を選んでいるときは, それぞれの枠だけを描く(ハンドルは出さない).
   if (isMulti() && state.tool === 'select') selectedObjects().forEach((obj) => drawFrameOnly(obj));
+  // 整列のガイド. そろった位置に, 画像の端から端まで線を引く.
+  if (state.guideLines && state.pointerAction) drawGuideLines(state.guideLines, w, h);
   // ペイントレイヤーの線を選んでいるときは, 選んだ線をまとめて囲む枠を描く.
   const paint = strokeSelectMode();
   const bounds = paint ? selectionBounds(paint) : null;
@@ -133,6 +135,24 @@ export function drawEditor() {
     strokeFrame(screenScale());
     octx.restore();
   }
+}
+
+function drawGuideLines(lines, w, h) {
+  const k = screenScale();
+  octx.save();
+  octx.lineWidth = 1 * k;
+  octx.strokeStyle = '#e0368c';
+  octx.beginPath();
+  lines.x.forEach((x) => {
+    octx.moveTo(x, 0);
+    octx.lineTo(x, h);
+  });
+  lines.y.forEach((y) => {
+    octx.moveTo(0, y);
+    octx.lineTo(w, y);
+  });
+  octx.stroke();
+  octx.restore();
 }
 
 // 枠だけを描く(複数を選んでいるとき). 直線・矢印も, 両端を囲む枠にする.

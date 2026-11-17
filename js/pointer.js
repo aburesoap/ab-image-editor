@@ -41,6 +41,7 @@ import {
 import {
   movedStrokes, selectedStrokeIndices, selectionBounds, setStrokeSelection, strokeSelectMode, strokesInRect,
 } from './paint-select.js';
+import { setGuideLines, shouldSnap, snapMove } from './guides.js';
 
 // ハンドルのドラッグに合わせてオブジェクトを更新する. snap がtrueのときは, 回転を15°刻みにする.
 function dragHandle(rawPoint, snap) {
@@ -343,11 +344,13 @@ original.addEventListener('pointermove', (event) => {
   if (state.pointerAction.mode === 'multi-move') {
     const action = state.pointerAction;
     const now = normalizedPoint(point);
+    const moving = action.initial.filter(({ obj }) => !obj.locked).map(({ obj }) => obj);
     action.initial.forEach(({ obj, copy }) => {
       if (obj.locked) return;
       Object.assign(obj, copy);
       moveObject(obj, now.x - action.start.x, now.y - action.start.y);
     });
+    snapMoving(moving, event);
     requestDraw();
     return;
   }
@@ -357,6 +360,7 @@ original.addEventListener('pointermove', (event) => {
     if (obj) {
       Object.assign(obj, state.pointerAction.initial);
       moveObject(obj, now.x - state.pointerAction.start.x, now.y - state.pointerAction.start.y);
+      snapMoving([obj], event);
       updateSelectionInspector();
       requestDraw();
     }
@@ -400,6 +404,17 @@ original.addEventListener('pointermove', (event) => {
   requestDraw();
 });
 
+// 整列のガイド. 動かしたものを, そろう位置へ吸い付け, そろった線を表示する.
+function snapMoving(moving, event) {
+  if (!shouldSnap(event)) {
+    setGuideLines(null);
+    return;
+  }
+  const snap = snapMove(moving);
+  if (snap.dx || snap.dy) moving.forEach((obj) => moveObject(obj, snap.dx / original.width, snap.dy / original.height));
+  setGuideLines(snap.lines);
+}
+
 // 番号を, 置いた点を中心にした, 画面上で正円の大きさにする(大きさは BADGE_DEFAULTS.sizePx).
 function sizeBadgeAround(shape) {
   const ref = refWidth();
@@ -413,6 +428,7 @@ function sizeBadgeAround(shape) {
 function finishPointerAction() {
   const action = state.pointerAction;
   state.pointerAction = null;
+  setGuideLines(null);
   if (!action) return;
 
   if (action.mode === 'shape') {
@@ -514,6 +530,7 @@ export function cancelPointerAction() {
   const action = state.pointerAction;
   if (!action) return;
   state.pointerAction = null;
+  setGuideLines(null);
   const obj = selectedObject();
   if ((action.mode === 'object-move' || action.mode === 'handle') && obj && action.initial) {
     Object.assign(obj, action.initial);

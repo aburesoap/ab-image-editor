@@ -59,6 +59,8 @@ export const state = {
   worker: null,
   // オブジェクトに付ける通し番号. 元に戻したあとも, 同じオブジェクトを選んだままにするために使う.
   nextObjectId: 1,
+  // 整列のガイドで表示する線({ x: [...], y: [...] }, canvas上のpx). 動かしている間だけ持つ.
+  guideLines: null,
 };
 
 // 選択. 1つだけ選んでいるときは selectedIndex(オブジェクトの添字), 2つ以上のときは multiIds(オブジェクトの id の列)に持つ.

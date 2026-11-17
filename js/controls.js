@@ -32,6 +32,7 @@ import {
   updateToolUI,
 } from './actions.js';
 import { syncPenOptions } from './pen-options.js';
+import { guidesEnabled, setGuidesEnabled } from './guides.js';
 
 // 色の欄を, 自作のカラーピッカーを開くボタンにする. 値の読み書きとイベントは, 標準の入力欄と同じ.
 colorFields.forEach((id) => initColorField($(id)));
@@ -44,6 +45,9 @@ $('shapeType').addEventListener('change', () => {
   state.shapeType = $('shapeType').value;
   syncShapeOptions();
 });
+// 整列のガイドの入り切り. 端末ごとに覚える.
+$('guidesToggle').checked = guidesEnabled();
+$('guidesToggle').addEventListener('change', () => setGuidesEnabled($('guidesToggle').checked));
 $('toolLock').addEventListener('change', () => { state.toolLock = $('toolLock').checked; });
 
 // ペンの道具. 種類(ペン・蛍光ペン)ごとに, 色と太さを覚えておく.

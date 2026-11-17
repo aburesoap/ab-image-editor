@@ -33,6 +33,8 @@
 <button id="saveProjectEmbedded" class="menu-item" disabled>↓ 編集データを保存（元画像を含む）</button>
 <button id="saveProject" class="menu-item" disabled>↓ 元画像を含めずに保存</button>
 <label class="menu-item" for="loadProject">↑ 編集データを読み込む</label><input id="loadProject" type="file" accept="application/json,.json" hidden>
+<label class="menu-item menu-check"><input id="autosaveToggle" type="checkbox" checked> この端末に自動保存する</label>
+<p class="menu-note">自動保存は, 編集のたびに最後の1件をこのブラウザの中に残し, 次に開いたときに「前回の続き」から戻せます. 共用の端末ではオフにしてください（オフにすると, 残してあったものも消します）</p>
 <p class="menu-note">元画像を含めて保存すると, 1つのファイル（.json）だけで続きを開けます. 含めずに保存したものは, 編集前の画像を開いてから読み込んでください</p>
 </div>
 </details>
@@ -123,6 +125,10 @@
 <p class="start-title">開始方法を選んでください</p>
 <label class="file-drop" for="file"><span class="file-icon">＋</span><strong>画像を開く</strong><small>PNG / JPEG / WebP / GIF など</small></label>
 <button id="startBlank" type="button" class="file-drop"><span class="file-icon">□</span><strong>白紙から始める</strong><small>大きさを選んで作る</small></button>
+<div id="resumeBox" class="resume-box" hidden>
+<button id="resumeAutosave" type="button" class="file-drop"><span class="file-icon">↺</span><strong>前回の続き</strong><small id="resumeInfo"></small></button>
+<button id="discardAutosave" type="button" class="ghost small">前回の続きを消す</button>
+</div>
 <p class="hint">画像は, ここへドラッグ&ドロップするか, Ctrl+V や上の「貼り付け」でも開けます. 開いた画像の上に別の画像を重ねるときは, Shift を押しながらドロップするか, Ctrl+Shift+V で貼り付けます</p>
 </div>
 <canvas id="original" hidden></canvas>

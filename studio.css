@@ -398,6 +398,18 @@ button.file-drop {
   font: 700 15px var(--font-sans);
 }
 
+.resume-box {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+}
+
+.menu-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* ---- 白紙から始める ---- */
 .blank-dialog {
   width: min(420px, calc(100vw - 32px));

@@ -1692,3 +1692,61 @@ test('レイヤー一覧の Ctrl+クリックで選び, まとめて複製・削
   assert.equal(await objectCount(), 4);
   assert.match(await status(), /1 個を削除しました（ロック中の 1 個は残しました）/);
 });
+
+// ---- v2.10.0 ----
+// 自動保存を待つ(編集が止まってから保存するまでの時間を待たずに, すぐ保存させる).
+const flushAutosave = () => page.evaluate(async () => {
+  const { flushAutosave: flush } = await import(`${location.origin}/js/autosave.js`);
+  await flush();
+});
+
+async function reloadPage() {
+  await page.reload();
+  await page.waitForFunction(() => document.getElementById('emptyState') && !document.getElementById('emptyState').hidden);
+}
+
+test('編集すると自動保存され, 開き直すと起動画面の「前回の続き」から戻せる', async () => {
+  await drawRect([0.2, 0.2], [0.5, 0.5]);
+  await addImageLayer(40, 40);
+  await flushAutosave();
+  await reloadPage();
+  await page.waitForSelector('#resumeBox:not([hidden])');
+  assert.match(await page.textContent('#resumeInfo'), /black\.png・レイヤー 2/);
+  await page.click('#resumeAutosave');
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('前回の続きを開きました'));
+  assert.deepEqual(await layerNames(), ['画像（green.png）', '長方形・塗り']);
+  const [rect, image, corner] = await resultPixels([[0.3, 0.3], [0.5, 0.5], [0.05, 0.05]]);
+  assert.ok(near(rect, DEFAULT_FILL), `長方形 (実際: ${rect})`);
+  assert.ok(near(image, GREEN), `重ねた画像 (実際: ${image})`);
+  assert.ok(near(corner, [255, 0, 0]), `元画像の赤い隅 (実際: ${corner})`);
+  // 戻した直後は, 元に戻すで消えない(戻した状態が最初の状態).
+  assert.equal(await page.isDisabled('#undo'), true);
+});
+
+test('画像を開いただけでは前回の続きを上書きせず, 自動保存をオフにすると消える', async () => {
+  await drawRect([0.2, 0.2], [0.5, 0.5]);
+  await flushAutosave();
+  await reloadPage();
+  // 別の画像を開くだけなら, 前回の続きは残る.
+  await loadImage();
+  await flushAutosave();
+  await reloadPage();
+  await page.waitForSelector('#resumeBox:not([hidden])');
+  assert.match(await page.textContent('#resumeInfo'), /レイヤー 1/);
+  // 消すボタンで消せる.
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.click('#discardAutosave');
+  await page.waitForSelector('#resumeBox', { state: 'hidden' });
+  await reloadPage();
+  assert.equal(await page.isVisible('#resumeBox'), false);
+  // オフにしている間は保存しない. 設定はページを開き直しても残る.
+  await loadImage();
+  await page.click('#fileMenuSummary');
+  await page.uncheck('#autosaveToggle');
+  await page.click('#fileMenuSummary');
+  await drawRect([0.2, 0.2], [0.5, 0.5]);
+  await flushAutosave();
+  await reloadPage();
+  assert.equal(await page.isVisible('#resumeBox'), false);
+  assert.equal(await page.isChecked('#autosaveToggle'), false);
+});

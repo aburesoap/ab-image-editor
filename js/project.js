@@ -48,20 +48,29 @@ function base64ToBlob(data, type) {
 }
 
 // 編集データを保存する. embed が true なら, 元画像のファイルも中に入れ, 1つのファイルだけで開けるようにする.
-async function saveProject(embed) {
-  if (!state.sourceImage) return;
+// 今の編集内容を, 編集データの形にする(画像のデータは含めない). 自動保存(autosave.js)からも使う.
+export function projectData() {
   const snap = snapshot();
-  const project = {
+  return {
     format: PROJECT_FORMAT,
     version: PROJECT_VERSION,
     source: { width: state.sourceImage.naturalWidth, height: state.sourceImage.naturalHeight, name: state.sourceName },
     document: { crop: snap.crop, objects: snap.objects, rotation: snap.rotation },
     conversion: snap.conversion,
   };
+}
+
+// 編集データで使っている, 重ねた画像の素材の番号.
+export const usedImageIds = (project) => [...new Set(project.document.objects
+  .filter((obj) => obj.type === 'image').map((obj) => obj.imageId))].filter(imageAsset);
+
+async function saveProject(embed) {
+  if (!state.sourceImage) return;
+  const project = projectData();
   // 重ねた画像は, 元画像を含めない保存でも必ず中に入れる(ほかに取り戻す手段が無いため).
-  const ids = [...new Set(snap.objects.filter((obj) => obj.type === 'image').map((obj) => obj.imageId))];
+  const ids = usedImageIds(project);
   if (ids.length) {
-    project.images = await Promise.all(ids.filter(imageAsset).map(async (id) => {
+    project.images = await Promise.all(ids.map(async (id) => {
       const asset = imageAsset(id);
       return { id, type: asset.blob.type, name: asset.name, data: await blobToBase64(asset.blob) };
     }));
@@ -217,15 +226,50 @@ function sanitizeDocument(raw, assetIds) {
   };
 }
 
+// 読み込みに失敗したときの案内.
+export function projectErrorMessage(error) {
+  if (error.message === 'source image required') return '先に元画像を読み込んでください（元画像を含めて保存した編集データなら, そのまま開けます）';
+  if (error.message === 'source dimensions differ') return '元画像のサイズが保存データと一致しません';
+  if (error.message === 'newer project') return 'より新しい版のiMage Editorで保存された編集データです. ページを再読み込みしてから, もう一度読み込んでください';
+  return '編集データを読み込めませんでした';
+}
+
+// 編集データの形と版を確かめる. 新しい版で保存されたデータは, 知らない設定を落として壊してしまうため読み込まない.
+export function checkProject(project) {
+  if (!project || project.format !== PROJECT_FORMAT || !project.document || !project.conversion) throw new Error('invalid project');
+  if (finite(project.version, 1) > PROJECT_VERSION) throw new Error('newer project');
+}
+
+// 編集データの中身を, 今開いている元画像に反映する. 履歴は作り直す.
+// assets は重ねた画像の素材 [{ id(保存時の番号), blob, name }]. 失敗したら例外を投げ, 今の編集内容は変えない.
+export async function applyProjectData(project, assets = []) {
+  if (!state.sourceImage) throw new Error('source image required');
+  const size = project.source || {};
+  if (size.width !== state.sourceImage.naturalWidth || size.height !== state.sourceImage.naturalHeight) throw new Error('source dimensions differ');
+
+  // 重ねた画像の素材を読み込む. 保存時の番号から, 今回付けた番号への対応を作る.
+  const assetIds = new Map();
+  for (const entry of assets.slice(0, MAX_IMAGE_ASSETS)) {
+    if (!entry || typeof entry.id !== 'string' || !(entry.blob instanceof Blob)) continue;
+    const id = await registerImageAsset(entry.blob, typeof entry.name === 'string' ? entry.name : '');
+    if (id) assetIds.set(entry.id, id);
+  }
+
+  // 失敗しても現在の編集内容を壊さないよう, 先に検証を済ませてから反映する.
+  const sanitized = sanitizeDocument(project.document, assetIds);
+  restoreSnapshot({ ...sanitized, conversion: project.conversion });
+  // 読み込んだ編集データで使っていない素材(前に重ねていた画像など)は捨てる. 履歴も作り直すので, 戻ることは無い.
+  pruneImageAssets(sanitized.objects.filter((obj) => obj.type === 'image').map((obj) => obj.imageId));
+  resetHistory();
+}
+
 // 編集データ(.json)を読み込む. ファイルの選択と, ドロップから使う(どちらも open.js).
 // 元画像が埋め込まれていれば, openImage(blob, name) でその画像を開いてから反映する.
 // openImage は open.js から渡してもらう(このモジュールが open.js を読み込むと, 循環してしまうため).
 export async function loadProjectFile(projectFile, openImage) {
   try {
     const project = JSON.parse(await projectFile.text());
-    if (!project || project.format !== PROJECT_FORMAT || !project.document || !project.conversion) throw new Error('invalid project');
-    // 新しい版で保存されたデータは, 知らない設定を落として壊してしまうため読み込まない.
-    if (finite(project.version, 1) > PROJECT_VERSION) throw new Error('newer project');
+    checkProject(project);
     if (project.image) {
       const { type, data } = project.image;
       if (!IMAGE_TYPES.includes(type) || typeof data !== 'string' || data.length > EMBED_MAX_BYTES * 1.4) throw new Error('invalid project');
@@ -233,37 +277,16 @@ export async function loadProjectFile(projectFile, openImage) {
       // 開くのをやめた(未保存の編集の破棄を断った)場合は, 何も変えない.
       if (!(await openImage(base64ToBlob(data, type), name))) return;
     }
-    if (!state.sourceImage) throw new Error('source image required');
-    const size = project.source || {};
-    if (size.width !== state.sourceImage.naturalWidth || size.height !== state.sourceImage.naturalHeight) throw new Error('source dimensions differ');
-
-    // 重ねた画像の素材を読み込む. 保存時の番号から, 今回付けた番号への対応を作る.
-    const assetIds = new Map();
+    // 重ねた画像は, base64 の文字列からファイルに戻しておく.
     const images = Array.isArray(project.images) ? project.images.slice(0, MAX_IMAGE_ASSETS) : [];
-    for (const entry of images) {
-      if (!entry || typeof entry.id !== 'string' || !IMAGE_TYPES.includes(entry.type) || typeof entry.data !== 'string') continue;
-      if (entry.data.length > EMBED_MAX_BYTES * 1.4) continue;
-      const name = typeof entry.name === 'string' ? entry.name : '';
-      const blob = Object.assign(base64ToBlob(entry.data, entry.type), { name });
-      const id = await registerImageAsset(blob, name);
-      if (id) assetIds.set(entry.id, id);
-    }
-
-    // 失敗しても現在の編集内容を壊さないよう, 先に検証を済ませてから反映する.
-    const sanitized = sanitizeDocument(project.document, assetIds);
-    restoreSnapshot({ ...sanitized, conversion: project.conversion });
-    // 読み込んだ編集データで使っていない素材(前に重ねていた画像など)は捨てる. 履歴も作り直すので, 戻ることは無い.
-    pruneImageAssets(sanitized.objects.filter((obj) => obj.type === 'image').map((obj) => obj.imageId));
-    resetHistory();
+    const assets = images
+      .filter((entry) => entry && typeof entry.id === 'string' && IMAGE_TYPES.includes(entry.type)
+        && typeof entry.data === 'string' && entry.data.length <= EMBED_MAX_BYTES * 1.4)
+      .map((entry) => ({ id: entry.id, name: typeof entry.name === 'string' ? entry.name : '', blob: base64ToBlob(entry.data, entry.type) }));
+    await applyProjectData(project, assets);
     markSaved();
     setStatus('編集データを読み込みました');
   } catch (error) {
-    setStatus(error.message === 'source image required'
-      ? '先に元画像を読み込んでください（元画像を含めて保存した編集データなら, そのまま開けます）'
-      : error.message === 'source dimensions differ'
-        ? '元画像のサイズが保存データと一致しません'
-        : error.message === 'newer project'
-          ? 'より新しい版のiMage Editorで保存された編集データです. ページを再読み込みしてから, もう一度読み込んでください'
-          : '編集データを読み込めませんでした');
+    setStatus(projectErrorMessage(error));
   }
 }

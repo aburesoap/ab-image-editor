@@ -19,7 +19,12 @@ export function snapshot() {
   };
 }
 
+// 履歴が変わったときに呼ぶ関数(自動保存). history.js から自動保存を読み込むと循環するため, 登録してもらう.
+const changeListeners = [];
+export const onHistoryChange = (fn) => changeListeners.push(fn);
+
 function updateHistoryUI() {
+  changeListeners.forEach((fn) => fn());
   $('undo').disabled = history.length < 2;
   $('redo').disabled = future.length === 0;
 }

@@ -17,6 +17,7 @@ import './keyboard.js';
 import './export.js';
 import './project.js';
 import './session.js';
+import './autosave.js';
 
 sliders.forEach((id) => $(id).addEventListener('input', updateLabels));
 updateLabels();

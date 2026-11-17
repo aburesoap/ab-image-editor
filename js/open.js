@@ -4,7 +4,7 @@
 
 import { FULL_CROP, IMAGE_TYPES, TOOL_BUTTONS } from './constants.js';
 import { $, file, result, setDisabled, setStatus } from './dom.js';
-import { objects, state } from './state.js';
+import { makeBaseLayer, objects, state } from './state.js';
 import { drawEditor } from './render.js';
 import { updateLabels } from './settings.js';
 import { invalidateResult } from './convert.js';
@@ -51,6 +51,7 @@ export function openImage(blob, name, how = '読み込み') {
     state.rotation = 0;
     state.zoom.fit = true;
     objects.length = 0;
+    objects.push(makeBaseLayer());
     // 前の画像に重ねていた画像の素材は, もう使わない.
     pruneImageAssets();
     state.tool = 'select';

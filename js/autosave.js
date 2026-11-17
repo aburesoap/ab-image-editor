@@ -134,7 +134,7 @@ async function showResume() {
     box.hidden = true;
     return;
   }
-  const count = Array.isArray(record.project?.document?.objects) ? record.project.document.objects.length : 0;
+  const count = Array.isArray(record.project?.document?.objects) ? record.project.document.objects.filter((obj) => obj?.type !== 'base').length : 0;
   $('resumeInfo').textContent = `${formatTime(record.savedAt)}・${record.name || '画像'}・レイヤー ${count}`;
   box.hidden = false;
 }

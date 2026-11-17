@@ -9,6 +9,7 @@ import {
 import { drawPen } from './pen.js';
 import { drawPaint } from './paint.js';
 import { drawImageLayer } from './image-layer.js';
+import { drawSource } from './source.js';
 import { fontStack } from './fonts.js';
 
 // 次に置く番号. 置いてある番号の最大値の次にする(1つも無ければ1).
@@ -327,6 +328,15 @@ export function drawShape(ctx, width, height, shape, cropRect) {
     drawPaint(ctx, width, height, shape, cropRect, extra);
     return;
   }
+  if (shape.type === 'base') {
+    // 元画像のレイヤー. 切り抜き範囲と向きを反映して描く.
+    if (!state.sourceImage) return;
+    ctx.save();
+    ctx.globalAlpha = Number(shape.opacity ?? 1);
+    drawSource(ctx, width, height, cropRect);
+    ctx.restore();
+    return;
+  }
   if (shape.type === 'image') {
     drawImageLayer(ctx, width, height, shape, cropRect);
     return;
@@ -477,6 +487,7 @@ export function objectTypeLabel(type) {
     paper: '白地',
     paint: 'ペイント',
     image: '画像',
+    base: '元画像',
     text: 'テキスト',
   })[type] || '図形';
 }

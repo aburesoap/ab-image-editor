@@ -6,7 +6,7 @@ import {
 import { $, original, setStatus } from './dom.js';
 import { newObjectId, objects, selectedObject, state } from './state.js';
 import {
-  isBadge, isEffectType, isImage, isPaint, moveObject, sourceSize,
+  isBadge, isBase, isEffectType, isImage, isPaint, moveObject, sourceSize,
 } from './geometry.js';
 import { imageAsset, initialImageFrame, registerImageAsset } from './image-layer.js';
 import { nextBadgeNumber, syncWindowStyleOption } from './shapes.js';
@@ -174,6 +174,10 @@ export function deleteObjectAt(index) {
     setStatus('ロック中のため削除できません. レイヤー一覧の錠前で解除してください');
     return;
   }
+  if (isBase(obj)) {
+    setStatus('元画像のレイヤーは消せません. 隠すときは, レイヤー一覧の目のボタンを使ってください');
+    return;
+  }
   const selected = selectedObject();
   objects.splice(index, 1);
   state.selectedIndex = selected && selected !== obj ? objects.indexOf(selected) : -1;
@@ -187,18 +191,19 @@ export function deleteSelected() {
     return;
   }
   // 複数を選んでいるときは, ロック中のものを残して消す. 残ったロック中のものは選んだままにする.
+  // ロック中のものと元画像は残し, 選んだままにする.
   const list = selectedObjects();
-  const locked = list.filter((obj) => obj.locked);
+  const locked = list.filter((obj) => obj.locked || isBase(obj));
   if (locked.length === list.length) {
     setStatus('ロック中のため削除できません. レイヤー一覧の錠前で解除してください');
     return;
   }
-  const removed = new Set(list.filter((obj) => !obj.locked));
+  const removed = new Set(list.filter((obj) => !locked.includes(obj)));
   for (let i = objects.length - 1; i >= 0; i -= 1) if (removed.has(objects[i])) objects.splice(i, 1);
   selectMany(locked);
   updateSelectionInspector();
   commitChange();
-  setStatus(`${removed.size} 個を削除しました${locked.length ? `（ロック中の ${locked.length} 個は残しました）` : ''}`);
+  setStatus(`${removed.size} 個を削除しました${locked.length ? `（ロック中・元画像の ${locked.length} 個は残しました）` : ''}`);
 }
 
 // 作業領域で選べるもの(隠したもの・ロックしたもの・白地・ペイントを除く)をすべて選ぶ.
@@ -216,7 +221,7 @@ export function duplicateSelected() {
     return;
   }
   const source = selectedObject();
-  if (!source || objects.length >= MAX_OBJECTS) return;
+  if (!source || isBase(source) || objects.length >= MAX_OBJECTS) return;
   // 複製したものは, 隠れていたりロックされていたりしても, 見えて動かせる状態にする.
   const copy = { ...source, id: newObjectId(), hidden: false, locked: false };
   // 番号を複製したときは, 次の番号にする.
@@ -228,10 +233,11 @@ export function duplicateSelected() {
   commitChange();
 }
 
-// 白地を, いちばん下(元画像のすぐ上)に足して選ぶ. 白地の上に描けば, 簡単なお絵描きにも使える.
+// 白地を, 元画像のすぐ上に足して選ぶ. 白地の上に描けば, 簡単なお絵描きにも使える.
 export function addPaper() {
   if (!state.sourceImage || objects.length >= MAX_OBJECTS) return;
-  objects.unshift({
+  const at = objects.findIndex(isBase) + 1;
+  objects.splice(at, 0, {
     id: newObjectId(),
     type: 'paper',
     style: 'fill',
@@ -247,7 +253,7 @@ export function addPaper() {
     x2: 1,
     y2: 1,
   });
-  state.selectedIndex = 0;
+  state.selectedIndex = at;
   if (state.tool !== 'select') setTool('select', true);
   updateSelectionInspector();
   showTab('props');
@@ -347,7 +353,7 @@ export function resetImageAspect() {
 
 // 選んでいるものをまとめて複製する. 複製はそれぞれ元のすぐ上に置き, 複製したものを選ぶ.
 function duplicateMany() {
-  const list = selectedObjects();
+  const list = selectedObjects().filter((obj) => !isBase(obj));
   if (objects.length + list.length > MAX_OBJECTS) {
     setStatus('これ以上は置けないため, 複製できません');
     return;
@@ -365,8 +371,11 @@ function duplicateMany() {
   commitChange();
 }
 
+// 元画像のレイヤーだけを残して, すべて消す.
 export function clearAll() {
+  const base = objects.filter(isBase);
   objects.length = 0;
+  objects.push(...base);
   state.currentShape = null;
   state.selectedIndex = -1;
   updateSelectionInspector();

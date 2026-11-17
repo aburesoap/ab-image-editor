@@ -4,7 +4,7 @@ import { FULL_CROP, HANDLE_RADIUS, MIN_SHAPE_SIDE, ROTATE_OFFSET } from './const
 import { octx, original } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
 import {
-  dims, isCutout, isLineType, isText, screenScale, sourceSize, toSourcePoint,
+  dims, isCutout, isLineType, isText, screenScale,
 } from './geometry.js';
 import { drawWithCutouts } from './cutout.js';
 import { drawText } from './text.js';
@@ -19,47 +19,11 @@ function drawObject(ctx, width, height, obj, cropRect) {
   else drawShape(ctx, width, height, obj, cropRect);
 }
 
-// 元画像のうち切り抜き範囲を, 向き(回転)を反映して描く.
-function drawSource(ctx, width, height, cropRect) {
-  const image = state.sourceImage;
-  const nw = image.naturalWidth;
-  const nh = image.naturalHeight;
-  if (!state.rotation) {
-    ctx.drawImage(image, cropRect.x * nw, cropRect.y * nh, cropRect.w * nw, cropRect.h * nh, 0, 0, width, height);
-    return;
-  }
-  const { w: rw, h: rh } = sourceSize();
-  ctx.save();
-  // 回転後の画像の座標(px)から, 描画先の座標へ.
-  ctx.scale(width / (cropRect.w * rw), height / (cropRect.h * rh));
-  ctx.translate(-cropRect.x * rw, -cropRect.y * rh);
-  // 元画像の座標(px)から, 回転後の画像の座標へ.
-  if (state.rotation === 90) {
-    ctx.translate(rw, 0);
-    ctx.rotate(Math.PI / 2);
-  } else if (state.rotation === 180) {
-    ctx.translate(rw, rh);
-    ctx.rotate(Math.PI);
-  } else {
-    ctx.translate(0, rh);
-    ctx.rotate(-Math.PI / 2);
-  }
-  // 切り抜き範囲にあたる元画像の部分だけを描く.
-  const a = toSourcePoint(cropRect.x, cropRect.y);
-  const b = toSourcePoint(cropRect.x + cropRect.w, cropRect.y + cropRect.h);
-  const sx = Math.min(a.x, b.x) * nw;
-  const sy = Math.min(a.y, b.y) * nh;
-  const sw = Math.max(1, Math.abs(b.x - a.x) * nw);
-  const sh = Math.max(1, Math.abs(b.y - a.y) * nh);
-  ctx.drawImage(image, sx, sy, sw, sh, sx, sy, sw, sh);
-  ctx.restore();
-}
-
 // 切り抜き範囲を基準に, 元画像・オブジェクト(背面から順)の順で指定のcontextへ重ねて描く.
 export function renderComposite(ctx, width, height, cropRect) {
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = 'high';
-  drawSource(ctx, width, height, cropRect);
+  // 元画像も, 元画像のレイヤー(base)として重ね順の中で描く(shapes.js).
   // 置いている途中の図形は, いちばん上に置かれるものとして一緒に描く(くり抜きなら, その場で穴が見える).
   const list = state.currentShape ? [...objects, state.currentShape] : objects;
   list.forEach((obj, index) => {

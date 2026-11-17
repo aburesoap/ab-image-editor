@@ -21,10 +21,12 @@ export const isPenType = (type) => type === 'pen' || type === 'marker';
 export const isPaper = (obj) => obj.type === 'paper';
 // ペイントレイヤー. 画像全体に広がる透明なレイヤーで, 上に描いた線(消しゴムを含む)をまとめて持つ.
 export const isPaint = (obj) => obj.type === 'paint';
-// 画像全体に固定されたレイヤー(白地, ペイント). 作業領域では選ばず, 動かさず, ハンドルも出さない.
-export const isFullLayer = (obj) => isPaper(obj) || isPaint(obj);
+// 画像全体に固定されたレイヤー(白地, ペイント, 元画像). 作業領域では選ばず, 動かさず, ハンドルも出さない.
+// 元画像のレイヤー. 開いた画像そのもの. 1つだけあり, 消せない(隠すことはできる).
+export const isBase = (obj) => Boolean(obj) && obj.type === 'base';
+export const isFullLayer = (obj) => isPaper(obj) || isPaint(obj) || isBase(obj);
 // くり抜きにできるもの. 白地・ペイント(画像全体に広がる)と, ぼかし・モザイク(下を加工する)は除く.
-export const canCutout = (type) => !['paper', 'paint', 'blur', 'mosaic'].includes(type);
+export const canCutout = (type) => !['paper', 'paint', 'blur', 'mosaic', 'base'].includes(type);
 // くり抜き. 自分は描かれず, 自分の形ですぐ下のレイヤー1つに穴を開ける.
 export const isCutout = (obj) => Boolean(obj && obj.cutout === true && canCutout(obj.type));
 

@@ -19,7 +19,7 @@ import {
 } from './constants.js';
 import { colorOr, finite, limited } from './validate.js';
 import { $, downloadBlob, setStatus } from './dom.js';
-import { newObjectId, state } from './state.js';
+import { makeBaseLayer, newObjectId, state } from './state.js';
 import { FONT_KEYS, nearestWeight } from './fonts.js';
 import {
   ROTATIONS, canCutout, isEffectType, isLineType, isPenType, refWidth,
@@ -202,6 +202,14 @@ function sanitizeText(raw, ref) {
 function sanitizeObject(raw, ref, assetIds) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.type === 'image') return sanitizeImage(raw, assetIds);
+  if (raw.type === 'base') {
+    return {
+      ...makeBaseLayer(),
+      opacity: limited(raw.opacity, 1, 0, 1),
+      hidden: raw.hidden === true,
+      locked: raw.locked === true,
+    };
+  }
   return raw.type === 'text' ? sanitizeText(raw, ref) : sanitizeShape(raw);
 }
 
@@ -211,7 +219,11 @@ function sanitizeDocument(raw, assetIds) {
   if (!Array.isArray(raw.objects)) throw new Error('invalid project');
   const rotation = ROTATIONS.includes(raw.rotation) ? raw.rotation : 0;
   const ref = refWidth(rotation);
-  const list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref, assetIds)).filter(Boolean);
+  let list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref, assetIds)).filter(Boolean);
+  // 元画像のレイヤーは1つだけ. 無ければ(v10 までの編集データ), いちばん下に置く.
+  const firstBase = list.find((obj) => obj.type === 'base');
+  list = list.filter((obj) => obj.type !== 'base' || obj === firstBase);
+  if (!firstBase) list.unshift(makeBaseLayer());
   const w = limited(raw.crop.w, 1, MIN_CROP, 1);
   const h = limited(raw.crop.h, 1, MIN_CROP, 1);
   return {

@@ -16,7 +16,7 @@ import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
 import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
 import {
-  canCutout, isBadge, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
+  canCutout, isBadge, isBase, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
@@ -61,7 +61,8 @@ function syncWeightOptions(fontKey) {
 
 export function updateSelectionInspector() {
   const obj = selectedObject();
-  $('clearObjects').disabled = !state.sourceImage || objects.length === 0;
+  // 元画像のレイヤーは消さないので, それ以外が無ければ押せない.
+  $('clearObjects').disabled = !state.sourceImage || objects.every(isBase);
   // 2つ以上を選んでいるときは, まとめて行う操作だけを出す.
   const multi = isMulti();
   $('multiBody').hidden = !multi;
@@ -90,9 +91,12 @@ export function updateSelectionInspector() {
   const paint = isPaint(obj);
   // 画像レイヤーは, 位置・大きさ・角度・不透明度だけを持つ.
   const image = isImage(obj);
+  // 元画像のレイヤーは, 不透明度と重ね順・表示・ロックだけ.
+  const base = isBase(obj);
+  $('baseFields').hidden = !base;
   $('paintFields').hidden = !paint;
   $('imageFields').hidden = !image;
-  $('shapeFields').hidden = textObject || effect || paint || image;
+  $('shapeFields').hidden = textObject || effect || paint || image || base;
   $('effectFields').hidden = !effect;
   // ペン・蛍光ペンは線の色と太さだけ, 白地は色だけを持つ. 白地は画像全体に固定なので, 位置・大きさの欄も出さない.
   const pen = isPenType(obj.type);
@@ -102,7 +106,7 @@ export function updateSelectionInspector() {
   $('fillField').hidden = pen;
   $('strokeField').hidden = paper;
   $('styleField').hidden = pen;
-  $('numericFields').hidden = paper || paint;
+  $('numericFields').hidden = paper || paint || base;
   $('cutoutField').hidden = !canCutout(obj.type);
   $('editCutout').checked = obj.cutout === true;
   $('cutoutNote').hidden = obj.cutout !== true;
@@ -150,7 +154,8 @@ export function updateSelectionInspector() {
   $('bringFront').disabled = atFront;
   $('sendBack').disabled = atBack;
   setDisabled(geometryFields, Boolean(obj.locked));
-  $('deleteObject').disabled = Boolean(obj.locked);
+  $('deleteObject').disabled = Boolean(obj.locked) || base;
+  $('duplicateObject').disabled = base;
   $('lockNote').hidden = !obj.locked;
   rememberFields();
   syncColorPicker();
@@ -173,7 +178,7 @@ export function applyInspector() {
   let last = state.lastShape;
   if (isText(obj)) last = state.lastText;
   else if (isBadge(obj)) last = state.lastBadge;
-  else if (isPaper(obj) || isPaint(obj) || isImage(obj) || pen) last = {};
+  else if (isPaper(obj) || isPaint(obj) || isImage(obj) || isBase(obj) || pen) last = {};
 
   if (touched('editX')) {
     const value = number('editX', -100, 200);

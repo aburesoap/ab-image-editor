@@ -89,4 +89,21 @@ export const newObjectId = () => {
   state.nextObjectId += 1;
   return id;
 };
+// 元画像のレイヤー. 画像を開くたびに1つだけ作り, いちばん下に置く(重ね順は後から変えられる).
+export const makeBaseLayer = () => ({
+  id: newObjectId(),
+  type: 'base',
+  style: 'fill',
+  fill: '#ffffff',
+  stroke: '#ffffff',
+  lineWidth: 0,
+  opacity: 1,
+  rotation: 0,
+  hidden: false,
+  locked: false,
+  x1: 0,
+  y1: 0,
+  x2: 1,
+  y2: 1,
+});
 export const selectedObject = () => (state.selectedIndex >= 0 ? objects[state.selectedIndex] || null : null);

@@ -3,7 +3,7 @@
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
 import {
-  isBadge, isCutout, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText,
+  isBadge, isBase, isCutout, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText,
 } from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
 import { isSelectedIndex } from './selection.js';
@@ -37,6 +37,7 @@ function baseName(obj) {
     if (!line) return '（空のテキスト）';
     return line.length > NAME_LIMIT ? `${line.slice(0, NAME_LIMIT)}…` : line;
   }
+  if (isBase(obj)) return state.sourceName ? `元画像（${state.sourceName.length > NAME_LIMIT ? `${state.sourceName.slice(0, NAME_LIMIT)}…` : state.sourceName}）` : '元画像';
   if (isBadge(obj)) return `番号 ${obj.number ?? ''}`;
   // 画像は, 開いたときのファイル名を添える.
   if (isImage(obj)) {
@@ -54,7 +55,7 @@ function baseName(obj) {
 function swatchOf(obj) {
   if (isCutout(obj)) return { kind: 'cutout', fg: '', bg: '' };
   if (isText(obj)) return { kind: 'text', fg: obj.color, bg: obj.transparent ? '' : obj.bg };
-  if (isImage(obj)) return { kind: 'image', fg: '', bg: '' };
+  if (isImage(obj) || isBase(obj)) return { kind: 'image', fg: '', bg: '' };
   if (isLineType(obj.type) || isPenType(obj.type)) return { kind: 'line', fg: obj.stroke, bg: '' };
   if (isPaper(obj)) return { kind: 'fill', fg: obj.fill, bg: '' };
   if (isPaint(obj)) {
@@ -105,15 +106,15 @@ function stepButton(act, iconName, label, disabled) {
 }
 
 // その行のオブジェクトを消すボタン. ロック中は, 誤って消さないよう押せない.
-function deleteButton(locked) {
+function deleteButton(locked, base = false) {
   const button = document.createElement('button');
   button.type = 'button';
   button.className = 'layer-icon layer-delete';
   button.dataset.act = 'delete';
-  const label = locked ? 'ロック中は削除できません' : '削除';
+  const label = base ? '元画像のレイヤーは削除できません' : locked ? 'ロック中は削除できません' : '削除';
   button.title = label;
   button.setAttribute('aria-label', label);
-  button.disabled = locked;
+  button.disabled = locked || base;
   button.append(icon('trash'));
   return button;
 }
@@ -126,6 +127,7 @@ function buildRow(obj, index) {
   row.classList.toggle('selected', selected);
   row.classList.toggle('is-hidden', Boolean(obj.hidden));
   row.classList.toggle('is-locked', Boolean(obj.locked));
+  row.classList.toggle('is-base', isBase(obj));
 
   const grip = document.createElement('span');
   grip.className = 'layer-grip';
@@ -160,7 +162,7 @@ function buildRow(obj, index) {
     stepButton('down', 'down', 'ひとつ背面へ', index === 0),
     toggleButton('visible', !obj.hidden, 'eye', 'eyeOff', obj.hidden ? '表示する' : '隠す'),
     toggleButton('lock', Boolean(obj.locked), 'lock', 'unlock', obj.locked ? 'ロックを解除' : 'ロックする'),
-    deleteButton(Boolean(obj.locked)),
+    deleteButton(Boolean(obj.locked), isBase(obj)),
   );
   return row;
 }

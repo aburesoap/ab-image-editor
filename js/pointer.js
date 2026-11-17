@@ -14,7 +14,7 @@ import {
 import { $, original, setStatus } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
 import {
-  canvasPoint, isText, moveObject, normalizeAngle, normalizedPoint, refWidth, screenScale,
+  canvasPoint, constrainedEnd, isLineType, isText, moveObject, normalizeAngle, normalizedPoint, refWidth, screenScale,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { makeShape, makeText, newShapeStyle } from './shapes.js';
@@ -220,7 +220,8 @@ original.addEventListener('pointermove', (event) => {
     const now = normalizedPoint(point);
     const stroke = state.currentStroke;
     if (event.shiftKey) {
-      stroke.points = [action.start.x, action.start.y, now.x, now.y];
+      const end = constrainedEnd(action.start, now, 'angle');
+      stroke.points = [action.start.x, action.start.y, end.x, end.y];
     } else if (!appendPenPoint(stroke.points, now, 1.5 * screenScale() / original.width)) {
       return;
     }
@@ -231,8 +232,9 @@ original.addEventListener('pointermove', (event) => {
     const action = state.pointerAction;
     const now = normalizedPoint(point);
     if (event.shiftKey) {
-      // Shift を押している間は, 書き始めの点から今の点までの直線にする.
-      action.absolute = [action.start.x, action.start.y, now.x, now.y];
+      // Shift を押している間は, 書き始めの点から今の点までの, 45°刻みの直線にする.
+      const end = constrainedEnd(action.start, now, 'angle');
+      action.absolute = [action.start.x, action.start.y, end.x, end.y];
     } else {
       // 画面上で1.5pxより近い点は足さない(点の数を抑える).
       const before = action.absolute.length;
@@ -244,7 +246,12 @@ original.addEventListener('pointermove', (event) => {
     return;
   }
   if (state.pointerAction.mode === 'shape') {
-    const end = normalizedPoint(point);
+    // Shift を押している間は, 線・矢印なら45°刻み, ほかの図形なら正方形(正円)にする.
+    let end = normalizedPoint(point);
+    if (event.shiftKey) {
+      const mode = isLineType(state.currentShape.type) ? 'angle' : 'square';
+      end = constrainedEnd(state.pointerAction.start, end, mode);
+    }
     state.currentShape.x2 = end.x;
     state.currentShape.y2 = end.y;
     requestDraw();

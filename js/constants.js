@@ -101,12 +101,12 @@ export const TOOL_BUTTONS = {
 export const TOOL_HINTS = {
   select: 'クリックで選択／ドラッグで移動／ハンドルでサイズ変更・回転',
   crop: '枠をドラッグして切り抜き範囲を調整／上のボタンで画像を90°回転',
-  shape: 'ドラッグして図形を配置',
+  shape: 'ドラッグして図形を配置／Shift を押しながらで正方形・45°',
   badge: 'クリックで番号を配置（置くたびに1つずつ増える）／ドラッグで大きさを指定',
-  effect: 'ドラッグした範囲を, ぼかし・モザイクで隠す',
+  effect: 'ドラッグした範囲を, ぼかし・モザイクで隠す／Shift を押しながらで正方形',
   text: 'クリックしてテキストを配置',
-  pen: 'ドラッグして描く／Shift を押しながらで直線',
-  paint: 'ペイントレイヤーに描く／Shift を押しながらで直線',
+  pen: 'ドラッグして描く／Shift を押しながらで直線（45°刻み）',
+  paint: 'ペイントレイヤーに描く／Shift を押しながらで直線（45°刻み）',
 };
 export const TOOL_KEYS = {
   v: 'select', c: 'crop', r: 'shape', t: 'text', p: 'pen',

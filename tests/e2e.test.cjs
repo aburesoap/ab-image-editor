@@ -1042,6 +1042,71 @@ test('Shift を押しながら描くと直線になる', async () => {
   assert.ok(near(detour, BLACK), `途中の点 (実際: ${detour})`);
 });
 
+// 図形の道具で, Shift を押しながらドラッグする.
+async function drawShapeShift(type, from, to) {
+  await page.keyboard.press('r');
+  await page.selectOption('#shapeType', type);
+  const a = await at(...from);
+  const b = await at(...to);
+  await page.keyboard.down('Shift');
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up('Shift');
+}
+
+// 最後に置いたオブジェクトの枠を, 画像上の画素で読む.
+const lastFramePx = () => page.evaluate(async ([w, h]) => {
+  const { objects } = await import(`${location.origin}/js/state.js`);
+  const obj = objects[objects.length - 1];
+  return [obj.x1 * w, obj.y1 * h, obj.x2 * w, obj.y2 * h].map((v) => Math.round(v));
+}, [IMAGE_W, IMAGE_H]);
+
+test('Shift を押しながら図形を描くと, 画面上の正方形になる. 画像の端では正方形のまま縮める', async () => {
+  // 横120px・縦60pxのドラッグ → 長い方に合わせて120px四方.
+  await drawShapeShift('rect', [0.2, 0.2], [0.5, 0.4]);
+  assert.deepEqual(await lastFramePx(), [80, 60, 200, 180]);
+  await page.keyboard.press('Escape');
+  // 左上へ向かうドラッグでも, 書き始めの点を角にする.
+  await drawShapeShift('ellipse', [0.5, 0.8], [0.4, 0.5]);
+  assert.deepEqual(await lastFramePx(), [200, 240, 110, 150]);
+  await page.keyboard.press('Escape');
+  // 右端まで120pxしか無いため, 縦も120pxに縮める.
+  await drawShapeShift('rect', [0.7, 0.5], [0.99, 0.99]);
+  assert.deepEqual(await lastFramePx(), [280, 150, 400, 270]);
+  await page.keyboard.press('Escape');
+  // ぼかしの範囲も正方形にする.
+  await drawShapeShift('blur', [0.1, 0.1], [0.2, 0.3]);
+  assert.deepEqual(await lastFramePx(), [40, 30, 100, 90]);
+});
+
+test('Shift を押しながら線・矢印を描くと, 45°刻みの向きになる', async () => {
+  // ほぼ水平 → 水平.
+  await drawShapeShift('line', [0.2, 0.5], [0.6, 0.55]);
+  assert.deepEqual(await lastFramePx(), [80, 150, 240, 150]);
+  await page.keyboard.press('Escape');
+  // 斜め(横120px・縦126px) → 45°. 長さは, 45°の向きへ写した長さ.
+  await drawShapeShift('arrow', [0.2, 0.2], [0.5, 0.62]);
+  const [x1, y1, x2, y2] = await lastFramePx();
+  assert.deepEqual([x1, y1], [80, 60]);
+  assert.equal(x2 - x1, y2 - y1, '縦横が同じ長さ');
+  assert.ok(Math.abs(x2 - x1 - 123) <= 1, `長さ (実際: ${x2 - x1})`);
+  await page.keyboard.press('Escape');
+  // ほぼ垂直 → 垂直.
+  await drawShapeShift('line', [0.5, 0.1], [0.52, 0.6]);
+  const vertical = await lastFramePx();
+  assert.equal(vertical[0], vertical[2], '縦の線');
+});
+
+test('Shift を押しながらペンで描く直線も, 45°刻みの向きになる', async () => {
+  // 終わりの点は書き始めより少し下だが, 水平の線にする.
+  await drawPen([[0.2, 0.3], [0.5, 0.33]], true);
+  const [onLine, below] = await resultPixels([[0.49, 0.3], [0.49, 0.33]]);
+  assert.ok(near(onLine, [0xd8, 0x3b, 0x3b]), `水平の線の上 (実際: ${onLine})`);
+  assert.ok(near(below, BLACK), `指の位置へ向かう斜めの線は描かない (実際: ${below})`);
+});
+
 test('白地を足すと画像全体が白くなり, 上に描いた線はそのまま. 白地は作業領域では選ばない', async () => {
   await drawPen([[0.2, 0.5], [0.8, 0.5]]);
   await page.click('#addPaper');

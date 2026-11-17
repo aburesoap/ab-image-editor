@@ -126,3 +126,37 @@ export function moveObject(obj, dx, dy) {
     obj.y2 += dy;
   }
 }
+
+// Shift を押しながら新しく描くときの終点(0〜1)を求める.
+// mode が 'square' なら, 書き始めの点を角にした画面上の正方形の対角へ. 'angle' なら, 45°刻みの向きへ.
+// どちらも, 形(正方形・角度)を保ったまま画像の内側に収まるよう, 長さを縮める.
+export function constrainedEnd(start, end, mode) {
+  const W = original.width;
+  const H = original.height;
+  const sx = start.x * W;
+  const sy = start.y * H;
+  let dx = (end.x - start.x) * W;
+  let dy = (end.y - start.y) * H;
+  if (mode === 'square') {
+    const side = Math.max(Math.abs(dx), Math.abs(dy));
+    dx = (dx < 0 ? -1 : 1) * side;
+    dy = (dy < 0 ? -1 : 1) * side;
+  } else {
+    const step = Math.PI / 4;
+    const angle = Math.round(Math.atan2(dy, dx) / step) * step;
+    const ux = Math.round(Math.cos(angle) * 1e9) / 1e9;
+    const uy = Math.round(Math.sin(angle) * 1e9) / 1e9;
+    // 指の位置を, その向きの直線へ写した長さにする.
+    const length = Math.max(0, dx * ux + dy * uy);
+    dx = ux * length;
+    dy = uy * length;
+  }
+  // 画像の端を越える分だけ, 縦横を同じ割合で縮める.
+  let scale = 1;
+  if (dx > 0) scale = Math.min(scale, (W - sx) / dx);
+  if (dx < 0) scale = Math.min(scale, -sx / dx);
+  if (dy > 0) scale = Math.min(scale, (H - sy) / dy);
+  if (dy < 0) scale = Math.min(scale, -sy / dy);
+  scale = Math.max(0, scale);
+  return { x: (sx + dx * scale) / W, y: (sy + dy * scale) / H };
+}

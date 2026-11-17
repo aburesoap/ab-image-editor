@@ -1750,3 +1750,54 @@ test('画像を開いただけでは前回の続きを上書きせず, 自動保
   assert.equal(await page.isVisible('#resumeBox'), false);
   assert.equal(await page.isChecked('#autosaveToggle'), false);
 });
+
+// ---- v2.11.0 ----
+// ペイントレイヤーを足して, 横線を2本(上と下)描き, 「線を選んで動かす」に持ち替える.
+async function paintTwoLines() {
+  await page.click('#addPaint');
+  await drawPen([[0.1, 0.2], [0.4, 0.2]]);
+  await drawPen([[0.1, 0.7], [0.4, 0.7]]);
+  await page.selectOption('#penType', 'move');
+}
+
+test('ペイントレイヤーの線は, 囲んで選び, ドラッグでまとめて動かせる. 元に戻すで戻る', async () => {
+  await paintTwoLines();
+  assert.equal(await page.isDisabled('#penWidth'), true, '線を動かすときは太さを使わない');
+  // 上の線だけを囲む.
+  await dragOn([0.05, 0.1], [0.5, 0.3]);
+  assert.match(await status(), /線を 1 本選んでいます/);
+  // 選んだ線の枠の中から, 右へ 0.4, 下へ 0.1 動かす.
+  await dragOn([0.25, 0.2], [0.65, 0.3]);
+  const [moved, before, other] = await resultPixels([[0.65, 0.3], [0.25, 0.2], [0.25, 0.7]]);
+  assert.ok(near(moved, RED), `動かした先 (実際: ${moved})`);
+  assert.ok(near(before, BLACK), `元の場所は空く (実際: ${before})`);
+  assert.ok(near(other, RED), `選んでいない線はそのまま (実際: ${other})`);
+  assert.deepEqual(await layerNames(), ['ペイント（2 本）']);
+  await page.click('#undo');
+  const [back, gone] = await resultPixels([[0.25, 0.2], [0.65, 0.3]]);
+  assert.ok(near(back, RED), `元に戻る (実際: ${back})`);
+  assert.ok(near(gone, BLACK), `動かした先は消える (実際: ${gone})`);
+});
+
+test('選んだ線は Delete で消え(レイヤーは残る), Ctrl+A でレイヤーの線をすべて選ぶ. 画像の外へは出さない', async () => {
+  await paintTwoLines();
+  await dragOn([0.05, 0.6], [0.5, 0.8]);
+  await page.keyboard.press('Delete');
+  assert.deepEqual(await layerNames(), ['ペイント（1 本）']);
+  const [kept, removed] = await resultPixels([[0.25, 0.2], [0.25, 0.7]]);
+  assert.ok(near(kept, RED), `残した線 (実際: ${kept})`);
+  assert.ok(near(removed, BLACK), `消した線 (実際: ${removed})`);
+  // すべて選んで, 左上の外まで動かしても, 線の端は画像の内側に止まる.
+  await page.click('#undo');
+  await page.keyboard.press('Control+a');
+  await dragOn([0.25, 0.2], [0.0, 0.0]);
+  const points = await page.evaluate(async () => {
+    const { objects } = await import(`${location.origin}/js/state.js`);
+    return objects[0].strokes.flatMap((s) => s.points);
+  });
+  assert.ok(Math.min(...points) >= 0, `点は 0 以上 (実際: ${Math.min(...points)})`);
+  assert.ok(Math.abs(Math.min(...points.filter((_, i) => i % 2 === 0))) < 0.001, '左端に寄せて止まる');
+  // Esc で線の選択を外しても, ペイントレイヤーは選んだまま.
+  await page.keyboard.press('Escape');
+  assert.match(await selectedName(), /ペイント/);
+});

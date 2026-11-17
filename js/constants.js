@@ -108,6 +108,7 @@ export const TOOL_HINTS = {
   text: 'クリックしてテキストを配置',
   pen: 'ドラッグして描く／Shift を押しながらで直線（45°刻み）',
   paint: 'ペイントレイヤーに描く／Shift を押しながらで直線（45°刻み）',
+  paintMove: 'ドラッグで囲んだ線を選ぶ（Shift で足す）／選んだ線をドラッグで動かす／Delete で消す',
 };
 export const TOOL_KEYS = {
   v: 'select', c: 'crop', r: 'shape', t: 'text', p: 'pen',

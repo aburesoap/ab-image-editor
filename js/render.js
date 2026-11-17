@@ -12,6 +12,7 @@ import { drawShape } from './shapes.js';
 import { cropHandles, objectFrame, objectHandles } from './handles.js';
 import { fitCanvases } from './stage.js';
 import { isMulti, selectedObjects } from './selection.js';
+import { selectionBounds, strokeSelectMode } from './paint-select.js';
 
 function drawObject(ctx, width, height, obj, cropRect) {
   if (isText(obj)) drawText(ctx, width, height, obj, cropRect);
@@ -102,8 +103,27 @@ export function drawEditor() {
   if (selected && state.tool === 'select') drawSelection(selected);
   // 複数を選んでいるときは, それぞれの枠だけを描く(ハンドルは出さない).
   if (isMulti() && state.tool === 'select') selectedObjects().forEach((obj) => drawFrameOnly(obj));
-  // 範囲選択の途中は, 囲んでいる範囲を描く.
+  // ペイントレイヤーの線を選んでいるときは, 選んだ線をまとめて囲む枠を描く.
+  const paint = strokeSelectMode();
+  const bounds = paint ? selectionBounds(paint) : null;
+  if (bounds) {
+    octx.save();
+    octx.beginPath();
+    octx.rect(bounds.left * w, bounds.top * h, (bounds.right - bounds.left) * w, (bounds.bottom - bounds.top) * h);
+    strokeFrame(screenScale());
+    octx.restore();
+  }
+  // 範囲選択の途中は, 囲んでいる範囲を描く. 線の範囲選択は 0〜1 で持っているので, 画素に直す.
   const action = state.pointerAction;
+  if (action && action.mode === 'strokes-marquee' && action.moved) {
+    octx.save();
+    octx.beginPath();
+    octx.rect(action.x1 * w, action.y1 * h, (action.x2 - action.x1) * w, (action.y2 - action.y1) * h);
+    octx.fillStyle = 'rgba(45,87,158,.12)';
+    octx.fill();
+    strokeFrame(screenScale());
+    octx.restore();
+  }
   if (action && action.mode === 'marquee' && action.moved) {
     octx.save();
     octx.beginPath();

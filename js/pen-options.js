@@ -19,15 +19,23 @@ export function syncPenTarget() {
   $('penTarget').textContent = paint ? `描き先: ${layerName(paint)}` : '描き先: 1本ずつの線';
   $('penTarget').classList.toggle('active', Boolean(paint));
   $('penType').querySelector('option[value="eraser"]').disabled = !paint;
-  if (!paint && state.penType === 'eraser') {
+  $('penType').querySelector('option[value="move"]').disabled = !paint;
+  if (!paint && (state.penType === 'eraser' || state.penType === 'move')) {
     state.penType = 'pen';
     syncPenOptions();
   }
 }
 
 export function syncPenOptions() {
-  const look = state.lastPen[state.penType];
   $('penType').value = state.penType;
+  // 線を選んで動かすときは, 色と太さを使わない.
+  const moving = state.penType === 'move';
+  $('penWidth').disabled = moving;
+  if (moving) {
+    $('penColor').disabled = true;
+    return;
+  }
+  const look = state.lastPen[state.penType];
   $('penColor').value = look.stroke;
   $('penWidth').value = String(Math.max(1, Math.min(PEN_WIDTH_MAX_PX, Math.round(look.widthPx))));
   $('penWidthVal').textContent = `${$('penWidth').value} px`;

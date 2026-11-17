@@ -29,6 +29,7 @@ import {
   setTool,
   setView,
   syncShapeOptions,
+  updateToolUI,
 } from './actions.js';
 import { syncPenOptions } from './pen-options.js';
 
@@ -48,14 +49,19 @@ $('toolLock').addEventListener('change', () => { state.toolLock = $('toolLock').
 // ペンの道具. 種類(ペン・蛍光ペン)ごとに, 色と太さを覚えておく.
 initColorField($('penColor'));
 $('penType').addEventListener('change', () => {
-  state.penType = ['marker', 'eraser'].includes($('penType').value) ? $('penType').value : 'pen';
+  state.penType = ['marker', 'eraser', 'move'].includes($('penType').value) ? $('penType').value : 'pen';
   syncPenOptions();
+  // 操作の案内と, 選んだ線の枠の表示を合わせる.
+  updateToolUI();
+  drawEditor();
 });
 ['input', 'change'].forEach((name) => {
-  $('penColor').addEventListener(name, () => { state.lastPen[state.penType].stroke = $('penColor').value; });
+  $('penColor').addEventListener(name, () => {
+    if (state.lastPen[state.penType]) state.lastPen[state.penType].stroke = $('penColor').value;
+  });
 });
 $('penWidth').addEventListener('input', () => {
-  state.lastPen[state.penType].widthPx = Number($('penWidth').value);
+  if (state.lastPen[state.penType]) state.lastPen[state.penType].widthPx = Number($('penWidth').value);
   $('penWidthVal').textContent = `${$('penWidth').value} px`;
 });
 syncPenOptions();

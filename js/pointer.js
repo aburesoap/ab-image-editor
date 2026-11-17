@@ -38,6 +38,9 @@ import { afterPlacement, showTab } from './actions.js';
 import {
   isMulti, isSelectedIndex, objectsInRect, selectMany, selectedObjects, toggleSelected,
 } from './selection.js';
+import {
+  movedStrokes, selectedStrokeIndices, selectionBounds, setStrokeSelection, strokeSelectMode, strokesInRect,
+} from './paint-select.js';
 
 // ハンドルのドラッグに合わせてオブジェクトを更新する. snap がtrueのときは, 回転を15°刻みにする.
 function dragHandle(rawPoint, snap) {
@@ -141,6 +144,26 @@ original.addEventListener('pointerdown', (event) => {
     // 文字は指を離した時点で配置する. 直後の疑似マウスイベントで入力欄の焦点が外れないよう, 既定の動作を止める.
     event.preventDefault();
     state.pointerAction = { mode: 'text-new', point: normalizedPoint(point) };
+  } else if (strokeSelectMode()) {
+    // ペイントレイヤーの中の線を選ぶ・動かす. 選んだ線の枠の内側からなら動かし, それ以外は囲んで選ぶ.
+    const paint = strokeSelectMode();
+    if (paint.locked || paint.hidden) {
+      setStatus('ロック中・非表示のペイントレイヤーの線は動かせません. レイヤー一覧で解除してください');
+      return;
+    }
+    const p = normalizedPoint(point);
+    const bounds = selectionBounds(paint);
+    const inside = bounds && p.x >= bounds.left && p.x <= bounds.right && p.y >= bounds.top && p.y <= bounds.bottom;
+    if (inside && !event.shiftKey) {
+      state.pointerAction = {
+        mode: 'strokes-move', layer: paint, start: p, initial: paint.strokes, indices: selectedStrokeIndices(paint),
+      };
+    } else {
+      state.pointerAction = {
+        mode: 'strokes-marquee', layer: paint, x1: p.x, y1: p.y, x2: p.x, y2: p.y, moved: false,
+        base: event.shiftKey ? selectedStrokeIndices(paint) : [],
+      };
+    }
   } else if (state.tool === 'pen' && activePaint()) {
     // ペイントレイヤーを選んでいる間は, そのレイヤーの中に描く.
     const paint = activePaint();
@@ -284,6 +307,25 @@ original.addEventListener('pointermove', (event) => {
     }
     state.currentShape.x2 = end.x;
     state.currentShape.y2 = end.y;
+    requestDraw();
+    return;
+  }
+  if (state.pointerAction.mode === 'strokes-marquee') {
+    const action = state.pointerAction;
+    const now = normalizedPoint(point);
+    action.x2 = now.x;
+    action.y2 = now.y;
+    const span = Math.hypot((action.x2 - action.x1) * original.width, (action.y2 - action.y1) * original.height);
+    if (!action.moved && span < 3 * screenScale()) return;
+    action.moved = true;
+    setStrokeSelection(action.layer, [...action.base, ...strokesInRect(action.layer, action)]);
+    requestDraw();
+    return;
+  }
+  if (state.pointerAction.mode === 'strokes-move') {
+    const action = state.pointerAction;
+    const now = normalizedPoint(point);
+    action.layer.strokes = movedStrokes(action.initial, action.indices, now.x - action.start.x, now.y - action.start.y);
     requestDraw();
     return;
   }
@@ -437,6 +479,18 @@ function finishPointerAction() {
     invalidateResult();
     drawEditor();
     pushHistory();
+  } else if (action.mode === 'strokes-marquee') {
+    // クリックだけなら, 線の選択を外す(Shift のときは, そのまま).
+    if (!action.moved) setStrokeSelection(action.layer, action.base);
+    const count = selectedStrokeIndices(action.layer).length;
+    setStatus(count ? `線を ${count} 本選んでいます. ドラッグで動かし, Delete で消せます` : '線を選んでいません. 動かしたい線をドラッグで囲んでください');
+    drawEditor();
+  } else if (action.mode === 'strokes-move') {
+    if (action.layer.strokes !== action.initial) {
+      invalidateResult();
+      pushHistory();
+    }
+    drawEditor();
   } else if (action.mode === 'marquee') {
     updateSelectionInspector();
     drawEditor();
@@ -469,6 +523,10 @@ export function cancelPointerAction() {
     state.currentStroke = null;
   } else if (action.mode === 'multi-move') {
     action.initial.forEach(({ obj, copy }) => Object.assign(obj, copy));
+  } else if (action.mode === 'strokes-move') {
+    action.layer.strokes = action.initial;
+  } else if (action.mode === 'strokes-marquee') {
+    setStrokeSelection(action.layer, action.base);
   } else if (action.mode === 'marquee') {
     selectMany(action.base);
   } else if (action.mode.startsWith('crop-')) {

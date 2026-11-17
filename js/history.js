@@ -8,6 +8,7 @@ import { drawEditor, requestDraw } from './render.js';
 import { applyConversion, readConversionState, syncGrayscaleButton, updateLabels } from './settings.js';
 import { invalidateResult } from './convert.js';
 import { updateSelectionInspector } from './inspector.js';
+import { clearStrokeSelection } from './paint-select.js';
 
 // 履歴の1件分. 切り抜き, 図形・テキスト, 仕上げ設定をまとめて保持する.
 export function snapshot() {
@@ -55,6 +56,8 @@ export function commitChange() {
 export function restoreSnapshot(snap) {
   const selectedId = selectedObject()?.id;
   const multiIds = [...state.multiIds];
+  // 線の番号がずれることがあるため, ペイントの線の選択は外す.
+  clearStrokeSelection();
   applyConversion(snap.conversion);
   state.crop = { ...snap.crop };
   // 向きが変わると画像の縦横が入れ替わるため, 全体が見える表示に戻す.

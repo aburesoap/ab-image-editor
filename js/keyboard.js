@@ -4,9 +4,12 @@ import { TOOL_KEYS } from './constants.js';
 import { state } from './state.js';
 import { drawEditor } from './render.js';
 import { updateSelectionInspector } from './inspector.js';
-import { redo, undo } from './history.js';
+import { commitChange, redo, undo } from './history.js';
 import { deleteSelected, selectAll, setTool } from './actions.js';
 import { isMulti } from './selection.js';
+import {
+  clearStrokeSelection, selectedStrokeIndices, setStrokeSelection, strokeSelectMode, strokesWithout,
+} from './paint-select.js';
 import { zoomFit, zoomStep, zoomTo } from './stage.js';
 
 // 拡大縮小のショートカット(Ctrl/⌘ と組み合わせる). 日本語配列では「+」が「;」のキーにあるため, どちらも受け付ける.
@@ -29,9 +32,28 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     ZOOM_KEYS[key]();
   } else if (modifier && !event.altKey && !typing && key === 'a' && state.sourceImage) {
-    // Ctrl+A: 作業領域で選べるものをすべて選ぶ.
+    // Ctrl+A: 作業領域で選べるものをすべて選ぶ. ペイントの線を選んでいるときは, そのレイヤーの線をすべて選ぶ.
     event.preventDefault();
-    selectAll();
+    const paint = strokeSelectMode();
+    if (paint) {
+      setStrokeSelection(paint, (paint.strokes || []).map((_, i) => i));
+      drawEditor();
+    } else {
+      selectAll();
+    }
+  } else if ((key === 'delete' || key === 'backspace') && !typing && strokeSelectMode()
+    && selectedStrokeIndices(strokeSelectMode()).length) {
+    // 選んだ線だけを消す(レイヤーは消さない).
+    event.preventDefault();
+    const paint = strokeSelectMode();
+    if (paint.locked) return;
+    paint.strokes = strokesWithout(paint, selectedStrokeIndices(paint));
+    clearStrokeSelection();
+    updateSelectionInspector();
+    commitChange();
+  } else if (key === 'escape' && strokeSelectMode() && selectedStrokeIndices(strokeSelectMode()).length) {
+    clearStrokeSelection();
+    drawEditor();
   } else if (modifier && !typing && (key === 'z' || key === 'y')) {
     event.preventDefault();
     if (key === 'y' || event.shiftKey) redo();

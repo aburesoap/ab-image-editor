@@ -21,7 +21,9 @@ import {
 
 // 操作の案内. 図形の道具では, 番号とぼかし・モザイクの置き方が違うので, 種類に合わせる.
 function toolHint() {
-  if (state.tool === 'pen' && selectedObject() && isPaint(selectedObject())) return TOOL_HINTS.paint;
+  if (state.tool === 'pen' && selectedObject() && isPaint(selectedObject())) {
+    return state.penType === 'move' ? TOOL_HINTS.paintMove : TOOL_HINTS.paint;
+  }
   if (state.tool !== 'shape') return TOOL_HINTS[state.tool];
   if (state.shapeType === 'badge') return TOOL_HINTS.badge;
   if (isEffectType(state.shapeType)) return TOOL_HINTS.effect;

@@ -49,6 +49,7 @@ export function commitChange() {
 // 選択していたオブジェクトが残っていれば, 元に戻したあとも選んだままにする.
 export function restoreSnapshot(snap) {
   const selectedId = selectedObject()?.id;
+  const multiIds = [...state.multiIds];
   applyConversion(snap.conversion);
   state.crop = { ...snap.crop };
   // 向きが変わると画像の縦横が入れ替わるため, 全体が見える表示に戻す.
@@ -58,6 +59,14 @@ export function restoreSnapshot(snap) {
   objects.length = 0;
   objects.push(...snap.objects.map((obj) => ({ ...obj })));
   state.selectedIndex = selectedId === undefined ? -1 : objects.findIndex((obj) => obj.id === selectedId);
+  // 複数を選んでいたときは, 残っているものを選んだままにする.
+  const kept = multiIds.filter((id) => objects.some((obj) => obj.id === id));
+  if (kept.length >= 2) {
+    state.selectedIndex = -1;
+    state.multiIds = kept;
+  } else if (kept.length === 1) {
+    state.selectedIndex = objects.findIndex((obj) => obj.id === kept[0]);
+  }
   updateSelectionInspector();
   syncGrayscaleButton();
   updateLabels();

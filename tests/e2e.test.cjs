@@ -1590,3 +1590,105 @@ test('画像を開き直すと, 重ねていた画像は消える. 画像レイ�
   assert.equal(await objectCount(), 0);
   assert.equal(await page.evaluate(async () => (await import(`${location.origin}/js/image-layer.js`)).imageAssets.size), 0);
 });
+
+// ---- v2.9.0 ----
+// すべてのオブジェクトの枠を, 画像上の画素で読む(背面から順).
+const framesPx = () => page.evaluate(async ([w, h]) => {
+  const { objects } = await import(`${location.origin}/js/state.js`);
+  return objects.map((obj) => [obj.x1 * w, obj.y1 * h, obj.x2 * w, obj.y2 * h].map((v) => Math.round(v)));
+}, [IMAGE_W, IMAGE_H]);
+const selectedRows = () => page.locator('#layerList .layer-row.selected').count();
+
+async function dragOn(from, to, shift = false) {
+  const a = await at(...from);
+  const b = await at(...to);
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.move(a.x, a.y);
+  await page.mouse.down();
+  await page.mouse.move(b.x, b.y, { steps: 6 });
+  await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
+}
+
+// 左上に2つ, 右下に1つの長方形を置き, 選択を外す.
+async function threeRects() {
+  await drawRect([0.15, 0.2], [0.25, 0.3]);
+  await drawRect([0.3, 0.2], [0.4, 0.3]);
+  await drawRect([0.7, 0.7], [0.8, 0.8]);
+  await page.keyboard.press('Escape');
+}
+
+test('選択の道具で何も無い所からドラッグすると, 範囲に触れたものをまとめて選び, まとめて動かせる', async () => {
+  await threeRects();
+  await page.keyboard.press('v');
+  await dragOn([0.1, 0.1], [0.32, 0.25]);
+  assert.equal(await page.isVisible('#multiBody'), true);
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中');
+  assert.equal(await page.isVisible('#propBody'), false);
+  assert.equal(await selectedRows(), 2);
+  // 選んだものの1つを掴んで動かすと, 2つとも同じだけ動く(40px 右, 30px 下).
+  await dragOn([0.2, 0.25], [0.3, 0.35]);
+  assert.deepEqual(await framesPx(), [[100, 90, 140, 120], [160, 90, 200, 120], [280, 210, 320, 240]]);
+  assert.equal(await selectedRows(), 2, '動かした後も選んだまま');
+  // 元に戻すと, 2つとも戻り, 選んだまま.
+  await page.click('#undo');
+  assert.deepEqual((await framesPx()).slice(0, 2), [[60, 60, 100, 90], [120, 60, 160, 90]]);
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中');
+  // 何も無い所をクリックすると, 選択を外す.
+  const empty = await at(0.5, 0.95);
+  await page.mouse.click(empty.x, empty.y);
+  assert.equal(await page.isVisible('#multiBody'), false);
+  assert.equal(await selectedRows(), 0);
+});
+
+test('Shift+クリックで選択に足す・外す. Delete でまとめて消え, Ctrl+A ですべて選ぶ', async () => {
+  await threeRects();
+  await page.keyboard.press('v');
+  const first = await at(0.2, 0.25);
+  const third = await at(0.75, 0.75);
+  await page.mouse.click(first.x, first.y);
+  await page.keyboard.down('Shift');
+  await page.mouse.click(third.x, third.y);
+  await page.keyboard.up('Shift');
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中');
+  // もう一度 Shift+クリックすると外れ, 1つだけの選択に戻る.
+  await page.keyboard.down('Shift');
+  await page.mouse.click(third.x, third.y);
+  await page.keyboard.up('Shift');
+  assert.equal(await page.isVisible('#multiBody'), false);
+  assert.equal(await page.isVisible('#propBody'), true);
+  // Shift を押しながらの範囲選択は, 今の選択に足す.
+  await dragOn([0.65, 0.65], [0.9, 0.9], true);
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中');
+  await page.keyboard.press('Delete');
+  assert.deepEqual(await framesPx(), [[120, 60, 160, 90]]);
+  await page.click('#undo');
+  assert.equal(await objectCount(), 3);
+  await page.keyboard.press('Control+a');
+  assert.equal(await page.textContent('#multiName'), '3 個を選択中');
+  await page.keyboard.press('Escape');
+  assert.equal(await selectedRows(), 0);
+});
+
+test('レイヤー一覧の Ctrl+クリックで選び, まとめて複製・削除できる. ロック中のものは消さない', async () => {
+  await threeRects();
+  const row = (i) => page.locator('#layerList .layer-main').nth(i);
+  await row(0).click();
+  await row(2).click({ modifiers: ['Control'] });
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中');
+  await page.click('#multiDuplicate');
+  assert.equal(await objectCount(), 5);
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中', '複製したものを選ぶ');
+  // 複製は, 元のすぐ上に少しずらして置く(8px 右, 6px 下).
+  assert.deepEqual(await framesPx(), [
+    [60, 60, 100, 90], [68, 66, 108, 96], [120, 60, 160, 90], [280, 210, 320, 240], [288, 216, 328, 246],
+  ]);
+  // 一覧の上から2番目(右下の長方形)をロックしてから, それを含めて消す.
+  await page.locator('#layerList .layer-row').nth(1).locator('[data-act="lock"]').click();
+  await row(1).click();
+  await row(0).click({ modifiers: ['Shift'] });
+  assert.match(await page.textContent('#multiName'), /2 個を選択中（ロック中 1 個/);
+  await page.click('#multiDelete');
+  assert.equal(await objectCount(), 4);
+  assert.match(await status(), /1 個を削除しました（ロック中の 1 個は残しました）/);
+});

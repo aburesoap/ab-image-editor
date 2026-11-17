@@ -25,6 +25,7 @@ import { invalidateResult } from './convert.js';
 import { renderLayerList } from './layers.js';
 import { syncColorPicker } from './colorpicker.js';
 import { syncPenOptions, syncPenTarget } from './pen-options.js';
+import { isMulti, selectedObjects } from './selection.js';
 
 const fieldValue = (id) => {
   const el = $(id);
@@ -61,8 +62,17 @@ function syncWeightOptions(fontKey) {
 export function updateSelectionInspector() {
   const obj = selectedObject();
   $('clearObjects').disabled = !state.sourceImage || objects.length === 0;
+  // 2つ以上を選んでいるときは, まとめて行う操作だけを出す.
+  const multi = isMulti();
+  $('multiBody').hidden = !multi;
+  if (multi) {
+    const list = selectedObjects();
+    const locked = list.filter((item) => item.locked).length;
+    $('multiName').textContent = `${list.length} 個を選択中${locked ? `（ロック中 ${locked} 個は動かさず, 消さない）` : ''}`;
+    $('multiDelete').disabled = locked === list.length;
+  }
   $('propBody').hidden = !obj;
-  $('propEmpty').hidden = Boolean(obj);
+  $('propEmpty').hidden = Boolean(obj) || multi;
   setDisabled(inspectorControls, !obj);
   renderLayerList();
   syncPenTarget();

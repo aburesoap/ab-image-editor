@@ -3,7 +3,12 @@
 
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
-import { deleteObjectAt, moveObjectTo, selectObject, toggleHidden, toggleLocked } from './actions.js';
+import {
+  deleteObjectAt, moveObjectTo, selectObject, setTool, toggleHidden, toggleLocked,
+} from './actions.js';
+import { toggleSelected } from './selection.js';
+import { updateSelectionInspector } from './inspector.js';
+import { drawEditor } from './render.js';
 
 const list = $('layerList');
 // ドラッグ中に一覧の端へ近づいたとき, 自動でスクロールする範囲(px)と速さ.
@@ -34,6 +39,12 @@ list.addEventListener('click', (event) => {
     const row = list.querySelector(`.layer-row[data-index="${to}"]`);
     const next = row?.querySelector(`[data-act="${act}"]`);
     (next && !next.disabled ? next : row?.querySelector('.layer-main'))?.focus({ preventScroll: true });
+  } else if (event.ctrlKey || event.metaKey || event.shiftKey) {
+    // Ctrl・Shift+クリックで, 選択に足す・外す.
+    if (state.tool !== 'select' || state.view !== 'edit') setTool('select', true);
+    toggleSelected(index);
+    updateSelectionInspector();
+    drawEditor();
   } else selectObject(index);
 });
 

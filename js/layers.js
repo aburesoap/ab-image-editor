@@ -6,6 +6,7 @@ import {
   isBadge, isCutout, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText,
 } from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
+import { isSelectedIndex } from './selection.js';
 
 const STYLE_LABELS = { fill: '塗り', stroke: '枠線', window: '窓' };
 const NAME_LIMIT = 24;
@@ -121,7 +122,8 @@ function buildRow(obj, index) {
   const row = document.createElement('li');
   row.className = 'layer-row';
   row.dataset.index = String(index);
-  row.classList.toggle('selected', index === state.selectedIndex);
+  const selected = isSelectedIndex(index);
+  row.classList.toggle('selected', selected);
   row.classList.toggle('is-hidden', Boolean(obj.hidden));
   row.classList.toggle('is-locked', Boolean(obj.locked));
 
@@ -134,8 +136,8 @@ function buildRow(obj, index) {
   main.type = 'button';
   main.className = 'layer-main';
   main.dataset.act = 'select';
-  if (index === state.selectedIndex) main.setAttribute('aria-current', 'true');
-  main.title = '選択（Alt+↑↓ で重ね順を変更）';
+  if (selected) main.setAttribute('aria-current', 'true');
+  main.title = '選択（Ctrl・Shift+クリックで選択に足す・外す. Alt+↑↓ で重ね順を変更）';
 
   const sw = swatchOf(obj);
   const swatch = document.createElement('span');
@@ -164,7 +166,7 @@ function buildRow(obj, index) {
 }
 
 function signature() {
-  return `${state.selectedIndex}#${objects.map((obj) => {
+  return `${state.selectedIndex}#${state.multiIds.join(',')}#${objects.map((obj) => {
     const sw = swatchOf(obj);
     return [obj.type, layerName(obj), sw.kind, sw.fg, sw.bg, obj.hidden ? 1 : 0, obj.locked ? 1 : 0].join('|');
   }).join('\n')}`;

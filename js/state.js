@@ -36,7 +36,6 @@ export const state = {
   lastPen: { pen: { ...PEN_DEFAULTS.pen }, marker: { ...PEN_DEFAULTS.marker }, eraser: { ...PEN_DEFAULTS.eraser } },
   // 開いている元画像のファイル(編集データへ埋め込むときに使う).
   sourceBlob: null,
-  selectedIndex: -1,
   converted: false,
   converting: false,
   // 結果を無効化するたびに増やす. 変換中に編集された場合, 古い結果を破棄するために使う.
@@ -61,6 +60,20 @@ export const state = {
   // オブジェクトに付ける通し番号. 元に戻したあとも, 同じオブジェクトを選んだままにするために使う.
   nextObjectId: 1,
 };
+
+// 選択. 1つだけ選んでいるときは selectedIndex(オブジェクトの添字), 2つ以上のときは multiIds(オブジェクトの id の列)に持つ.
+// selectedIndex へ代入すると, 複数の選択は解除される(1つを選び直した, 選択を外した, のどちらでも).
+// 複数を選ぶときは, selectedIndex に -1 を入れてから multiIds を入れる(selection.js の selectMany).
+let selectedIndexValue = -1;
+Object.defineProperty(state, 'selectedIndex', {
+  enumerable: true,
+  get: () => selectedIndexValue,
+  set: (value) => {
+    selectedIndexValue = value;
+    state.multiIds = [];
+  },
+});
+state.multiIds = [];
 
 // 描画順の配列. 先頭が最背面, 末尾が最前面. 図形とテキストを同じ配列で扱う.
 export const objects = [];

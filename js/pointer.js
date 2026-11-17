@@ -35,6 +35,9 @@ import { invalidateResult } from './convert.js';
 import { updateSelectionInspector } from './inspector.js';
 import { commitChange, pushHistory } from './history.js';
 import { afterPlacement, showTab } from './actions.js';
+import {
+  isMulti, isSelectedIndex, objectsInRect, selectMany, selectedObjects, toggleSelected,
+} from './selection.js';
 
 // ハンドルのドラッグに合わせてオブジェクトを更新する. snap がtrueのときは, 回転を15°刻みにする.
 function dragHandle(rawPoint, snap) {
@@ -186,15 +189,31 @@ original.addEventListener('pointerdown', (event) => {
     state.pointerAction = { mode: 'shape', start };
   } else if (state.tool === 'select') {
     const index = findObjectAtPoint(point);
-    state.selectedIndex = index;
-    if (index >= 0) {
+    // 何も無い所からのドラッグは, 範囲選択. base は, 範囲で選んだものに足す元の選択(Shift を押しているとき).
+    const marquee = (base) => ({
+      mode: 'marquee', x1: point.x, y1: point.y, x2: point.x, y2: point.y, moved: false, base,
+    });
+    if (event.shiftKey) {
+      // Shift+クリックで選択に足す・外す. 何も無い所からなら, 今の選択に足す範囲選択.
+      if (index >= 0) toggleSelected(index);
+      state.pointerAction = index >= 0 ? null : marquee(selectedObjects());
+    } else if (index >= 0 && isMulti() && isSelectedIndex(index)) {
+      // 選んでいるものの1つを掴んだら, まとめて動かす. ロック中のものは動かさない.
+      state.pointerAction = {
+        mode: 'multi-move',
+        start: normalizedPoint(point),
+        initial: selectedObjects().map((obj) => ({ obj, copy: { ...obj } })),
+      };
+    } else if (index >= 0) {
+      state.selectedIndex = index;
       state.pointerAction = {
         mode: 'object-move',
         start: normalizedPoint(point),
         initial: { ...objects[index] },
       };
     } else {
-      state.pointerAction = null;
+      state.selectedIndex = -1;
+      state.pointerAction = marquee([]);
     }
     updateSelectionInspector();
     if (index >= 0) showTab('props');
@@ -265,6 +284,28 @@ original.addEventListener('pointermove', (event) => {
     }
     state.currentShape.x2 = end.x;
     state.currentShape.y2 = end.y;
+    requestDraw();
+    return;
+  }
+  if (state.pointerAction.mode === 'marquee') {
+    // 画面上で3pxより動いてから, 範囲選択を始める(クリックだけなら, 選択を外すだけ).
+    const action = state.pointerAction;
+    action.x2 = point.x;
+    action.y2 = point.y;
+    if (!action.moved && Math.hypot(action.x2 - action.x1, action.y2 - action.y1) < 3 * screenScale()) return;
+    action.moved = true;
+    selectMany([...action.base, ...objectsInRect(action)]);
+    requestDraw();
+    return;
+  }
+  if (state.pointerAction.mode === 'multi-move') {
+    const action = state.pointerAction;
+    const now = normalizedPoint(point);
+    action.initial.forEach(({ obj, copy }) => {
+      if (obj.locked) return;
+      Object.assign(obj, copy);
+      moveObject(obj, now.x - action.start.x, now.y - action.start.y);
+    });
     requestDraw();
     return;
   }
@@ -396,7 +437,11 @@ function finishPointerAction() {
     invalidateResult();
     drawEditor();
     pushHistory();
-  } else if (action.mode === 'object-move') {
+  } else if (action.mode === 'marquee') {
+    updateSelectionInspector();
+    drawEditor();
+    if (selectedObjects().length) showTab('props');
+  } else if (action.mode === 'object-move' || action.mode === 'multi-move') {
     updateSelectionInspector();
     invalidateResult();
     drawEditor();
@@ -422,6 +467,10 @@ export function cancelPointerAction() {
     state.currentShape = null;
   } else if (action.mode === 'paint') {
     state.currentStroke = null;
+  } else if (action.mode === 'multi-move') {
+    action.initial.forEach(({ obj, copy }) => Object.assign(obj, copy));
+  } else if (action.mode === 'marquee') {
+    selectMany(action.base);
   } else if (action.mode.startsWith('crop-')) {
     state.crop = { ...action.initial };
   }

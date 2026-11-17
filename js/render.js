@@ -11,6 +11,7 @@ import { drawText } from './text.js';
 import { drawShape } from './shapes.js';
 import { cropHandles, objectFrame, objectHandles } from './handles.js';
 import { fitCanvases } from './stage.js';
+import { isMulti, selectedObjects } from './selection.js';
 
 function drawObject(ctx, width, height, obj, cropRect) {
   if (isText(obj)) drawText(ctx, width, height, obj, cropRect);
@@ -99,6 +100,34 @@ export function drawEditor() {
   if (state.tool === 'crop') drawCropOverlay(w, h, screenScale());
   const selected = selectedObject();
   if (selected && state.tool === 'select') drawSelection(selected);
+  // 複数を選んでいるときは, それぞれの枠だけを描く(ハンドルは出さない).
+  if (isMulti() && state.tool === 'select') selectedObjects().forEach((obj) => drawFrameOnly(obj));
+  // 範囲選択の途中は, 囲んでいる範囲を描く.
+  const action = state.pointerAction;
+  if (action && action.mode === 'marquee' && action.moved) {
+    octx.save();
+    octx.beginPath();
+    octx.rect(action.x1, action.y1, action.x2 - action.x1, action.y2 - action.y1);
+    octx.fillStyle = 'rgba(45,87,158,.12)';
+    octx.fill();
+    strokeFrame(screenScale());
+    octx.restore();
+  }
+}
+
+// 枠だけを描く(複数を選んでいるとき). 直線・矢印も, 両端を囲む枠にする.
+function drawFrameOnly(obj) {
+  const k = screenScale();
+  const frame = objectFrame(obj);
+  const hx = Math.max(frame.hx, MIN_SHAPE_SIDE * k);
+  const hy = Math.max(frame.hy, MIN_SHAPE_SIDE * k);
+  octx.save();
+  octx.translate(frame.cx, frame.cy);
+  octx.rotate(frame.theta);
+  octx.beginPath();
+  octx.rect(-hx, -hy, hx * 2, hy * 2);
+  strokeFrame(k);
+  octx.restore();
 }
 
 // 選択枠とハンドルの見た目. 図形の選択と切り抜き範囲で共通にする.

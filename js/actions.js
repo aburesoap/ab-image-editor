@@ -15,6 +15,9 @@ import { updateStageView } from './stage.js';
 import { updateSelectionInspector } from './inspector.js';
 import { convertImage } from './convert.js';
 import { commitChange, pushHistory } from './history.js';
+import {
+  isMulti, selectMany, selectableOnStage, selectedObjects,
+} from './selection.js';
 
 // 操作の案内. 図形の道具では, 番号とぼかし・モザイクの置き方が違うので, 種類に合わせる.
 function toolHint() {
@@ -101,9 +104,12 @@ export function moveObjectTo(from, to) {
   const target = Math.max(0, Math.min(objects.length - 1, to));
   if (target === from) return;
   const selected = selectedObject();
+  const multiIds = [...state.multiIds];
   const [item] = objects.splice(from, 1);
   objects.splice(target, 0, item);
   state.selectedIndex = selected ? objects.indexOf(selected) : -1;
+  // 複数を選んでいるときは, 選んだままにする.
+  if (multiIds.length >= 2) state.multiIds = multiIds;
   updateSelectionInspector();
   commitChange();
 }
@@ -173,10 +179,39 @@ export function deleteObjectAt(index) {
 }
 
 export function deleteSelected() {
-  deleteObjectAt(state.selectedIndex);
+  if (!isMulti()) {
+    deleteObjectAt(state.selectedIndex);
+    return;
+  }
+  // 複数を選んでいるときは, ロック中のものを残して消す. 残ったロック中のものは選んだままにする.
+  const list = selectedObjects();
+  const locked = list.filter((obj) => obj.locked);
+  if (locked.length === list.length) {
+    setStatus('ロック中のため削除できません. レイヤー一覧の錠前で解除してください');
+    return;
+  }
+  const removed = new Set(list.filter((obj) => !obj.locked));
+  for (let i = objects.length - 1; i >= 0; i -= 1) if (removed.has(objects[i])) objects.splice(i, 1);
+  selectMany(locked);
+  updateSelectionInspector();
+  commitChange();
+  setStatus(`${removed.size} 個を削除しました${locked.length ? `（ロック中の ${locked.length} 個は残しました）` : ''}`);
+}
+
+// 作業領域で選べるもの(隠したもの・ロックしたもの・白地・ペイントを除く)をすべて選ぶ.
+export function selectAll() {
+  if (!state.sourceImage || state.view !== 'edit') return;
+  if (state.tool !== 'select') setTool('select');
+  selectMany(objects.filter(selectableOnStage));
+  updateSelectionInspector();
+  drawEditor();
 }
 
 export function duplicateSelected() {
+  if (isMulti()) {
+    duplicateMany();
+    return;
+  }
   const source = selectedObject();
   if (!source || objects.length >= MAX_OBJECTS) return;
   // 複製したものは, 隠れていたりロックされていたりしても, 見えて動かせる状態にする.
@@ -303,6 +338,26 @@ export function resetImageAspect() {
   const sign = obj.y2 >= obj.y1 ? 1 : -1;
   obj.y1 = cy - sign * heightPx / H / 2;
   obj.y2 = cy + sign * heightPx / H / 2;
+  updateSelectionInspector();
+  commitChange();
+}
+
+// 選んでいるものをまとめて複製する. 複製はそれぞれ元のすぐ上に置き, 複製したものを選ぶ.
+function duplicateMany() {
+  const list = selectedObjects();
+  if (objects.length + list.length > MAX_OBJECTS) {
+    setStatus('これ以上は置けないため, 複製できません');
+    return;
+  }
+  const copies = list.map((source) => {
+    const copy = { ...source, id: newObjectId(), hidden: false, locked: false };
+    // 番号は, 先に複製した番号の次にする.
+    if (isBadge(copy)) copy.number = nextBadgeNumber();
+    moveObject(copy, 0.02, 0.02);
+    objects.splice(objects.indexOf(source) + 1, 0, copy);
+    return copy;
+  });
+  selectMany(copies);
   updateSelectionInspector();
   commitChange();
 }

@@ -123,7 +123,7 @@
 <p class="start-title">開始方法を選んでください</p>
 <label class="file-drop" for="file"><span class="file-icon">＋</span><strong>画像を開く</strong><small>PNG / JPEG / WebP / GIF など</small></label>
 <button id="startBlank" type="button" class="file-drop"><span class="file-icon">□</span><strong>白紙から始める</strong><small>大きさを選んで作る</small></button>
-<p class="hint">画像は, ここへドラッグ&ドロップするか, Ctrl+V や上の「貼り付け」でも開けます</p>
+<p class="hint">画像は, ここへドラッグ&ドロップするか, Ctrl+V や上の「貼り付け」でも開けます. 開いた画像の上に別の画像を重ねるときは, Shift を押しながらドロップするか, Ctrl+Shift+V で貼り付けます</p>
 </div>
 <canvas id="original" hidden></canvas>
 <canvas id="result" hidden></canvas>
@@ -142,7 +142,7 @@
 <div class="panel-body">
 <section id="paneProps">
 <div class="layers">
-<div class="layers-head"><h3 id="layerHead">レイヤー <span id="layerCount" class="layer-count"></span></h3><button id="addPaint" class="ghost small" disabled title="上に描いた線を1つにまとめる透明なレイヤーを, いちばん上に追加">＋ ペイント</button><button id="addPaper" class="ghost small" disabled title="画像全体を白で覆うレイヤーを, いちばん下に追加">＋ 白地</button></div>
+<div class="layers-head"><h3 id="layerHead">レイヤー <span id="layerCount" class="layer-count"></span></h3><button id="addImage" class="ghost small" disabled title="画像を選んで, いちばん上に重ねる（Shift を押しながらのドロップや Ctrl+Shift+V でも重ねられます）">＋ 画像</button><input id="addImageFile" type="file" accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif" multiple hidden><button id="addPaint" class="ghost small" disabled title="上に描いた線を1つにまとめる透明なレイヤーを, いちばん上に追加">＋ ペイント</button><button id="addPaper" class="ghost small" disabled title="画像全体を白で覆うレイヤーを, いちばん下に追加">＋ 白地</button></div>
 <ol id="layerList" class="layer-list" aria-labelledby="layerHead"></ol>
 <p id="layerEmpty" class="empty-note layer-empty">図形やテキストを置くと, ここに一覧で表示します</p>
 </div>
@@ -216,6 +216,10 @@
 <label for="editLineWidth">線の太さ <span id="editLineWidthVal" class="value">4 px</span></label>
 <input id="editLineWidth" type="range" min="1" max="80" value="4">
 </div>
+</div>
+<div id="imageFields">
+<p class="setting-note">四隅のハンドルは縦横の比率を保ったまま大きさを変えます（Shift を押すと比率を保ちません）. 辺のハンドルは, 縦か横だけを伸び縮みさせます</p>
+<div class="button-row"><button id="imageAspect" class="secondary">元の縦横比に戻す</button></div>
 </div>
 <div id="paintFields">
 <p class="setting-note">ペイントレイヤーを選んだままペンの道具で描くと, このレイヤーの中に描き足します. 消しゴムは, このレイヤーの中だけを消します. 元に戻すは1本ずつです</p>

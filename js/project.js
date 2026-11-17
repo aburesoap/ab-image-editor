@@ -25,6 +25,10 @@ import {
   ROTATIONS, canCutout, isEffectType, isLineType, isPenType, refWidth,
 } from './geometry.js';
 import { markSaved, resetHistory, restoreSnapshot, snapshot } from './history.js';
+import { imageAsset, pruneImageAssets, registerImageAsset } from './image-layer.js';
+
+// 重ねた画像の素材の数の上限.
+const MAX_IMAGE_ASSETS = 100;
 
 // ファイルの中身を, base64 の文字列にする(先頭の「data:…;base64,」は除く).
 function blobToBase64(blob) {
@@ -54,6 +58,14 @@ async function saveProject(embed) {
     document: { crop: snap.crop, objects: snap.objects, rotation: snap.rotation },
     conversion: snap.conversion,
   };
+  // 重ねた画像は, 元画像を含めない保存でも必ず中に入れる(ほかに取り戻す手段が無いため).
+  const ids = [...new Set(snap.objects.filter((obj) => obj.type === 'image').map((obj) => obj.imageId))];
+  if (ids.length) {
+    project.images = await Promise.all(ids.filter(imageAsset).map(async (id) => {
+      const asset = imageAsset(id);
+      return { id, type: asset.blob.type, name: asset.name, data: await blobToBase64(asset.blob) };
+    }));
+  }
   if (embed) {
     const blob = state.sourceBlob;
     if (!blob || !IMAGE_TYPES.includes(blob.type) || blob.size > EMBED_MAX_BYTES) {
@@ -69,6 +81,29 @@ async function saveProject(embed) {
 
 $('saveProjectEmbedded').addEventListener('click', () => saveProject(true));
 $('saveProject').addEventListener('click', () => saveProject(false));
+
+// 画像レイヤー. 素材が読み込めなかったもの(assetIds に無い番号)は落とす.
+function sanitizeImage(raw, assetIds) {
+  const imageId = assetIds.get(raw.imageId);
+  if (!imageId) return null;
+  return {
+    id: newObjectId(),
+    type: 'image',
+    imageId,
+    name: typeof raw.name === 'string' ? raw.name.slice(0, 200) : '',
+    style: 'fill',
+    fill: '#ffffff',
+    stroke: '#ffffff',
+    lineWidth: 0,
+    opacity: limited(raw.opacity, 1, 0, 1),
+    rotation: limited(raw.rotation, 0, -180, 180),
+    hidden: raw.hidden === true,
+    locked: raw.locked === true,
+    ...(raw.cutout === true ? { cutout: true } : {}),
+    x1: finite(raw.x1, 0.25), y1: finite(raw.y1, 0.25),
+    x2: finite(raw.x2, 0.75), y2: finite(raw.y2, 0.75),
+  };
+}
 
 function sanitizeShape(raw) {
   if (!raw || typeof raw !== 'object' || !SHAPE_TYPES.includes(raw.type)) return null;
@@ -155,18 +190,19 @@ function sanitizeText(raw, ref) {
   };
 }
 
-function sanitizeObject(raw, ref) {
+function sanitizeObject(raw, ref, assetIds) {
   if (!raw || typeof raw !== 'object') return null;
+  if (raw.type === 'image') return sanitizeImage(raw, assetIds);
   return raw.type === 'text' ? sanitizeText(raw, ref) : sanitizeShape(raw);
 }
 
-function sanitizeDocument(raw) {
+function sanitizeDocument(raw, assetIds) {
   if (!raw || typeof raw !== 'object' || !raw.crop || typeof raw.crop !== 'object') throw new Error('invalid project');
   // 図形とテキストを1つの配列で持つ形式(拡張機能版 v1.2.0 以降, Web 版)だけを読む. それより前の形式には対応しない.
   if (!Array.isArray(raw.objects)) throw new Error('invalid project');
   const rotation = ROTATIONS.includes(raw.rotation) ? raw.rotation : 0;
   const ref = refWidth(rotation);
-  const list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref)).filter(Boolean);
+  const list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref, assetIds)).filter(Boolean);
   const w = limited(raw.crop.w, 1, MIN_CROP, 1);
   const h = limited(raw.crop.h, 1, MIN_CROP, 1);
   return {
@@ -201,9 +237,23 @@ export async function loadProjectFile(projectFile, openImage) {
     const size = project.source || {};
     if (size.width !== state.sourceImage.naturalWidth || size.height !== state.sourceImage.naturalHeight) throw new Error('source dimensions differ');
 
+    // 重ねた画像の素材を読み込む. 保存時の番号から, 今回付けた番号への対応を作る.
+    const assetIds = new Map();
+    const images = Array.isArray(project.images) ? project.images.slice(0, MAX_IMAGE_ASSETS) : [];
+    for (const entry of images) {
+      if (!entry || typeof entry.id !== 'string' || !IMAGE_TYPES.includes(entry.type) || typeof entry.data !== 'string') continue;
+      if (entry.data.length > EMBED_MAX_BYTES * 1.4) continue;
+      const name = typeof entry.name === 'string' ? entry.name : '';
+      const blob = Object.assign(base64ToBlob(entry.data, entry.type), { name });
+      const id = await registerImageAsset(blob, name);
+      if (id) assetIds.set(entry.id, id);
+    }
+
     // 失敗しても現在の編集内容を壊さないよう, 先に検証を済ませてから反映する.
-    const sanitized = sanitizeDocument(project.document);
+    const sanitized = sanitizeDocument(project.document, assetIds);
     restoreSnapshot({ ...sanitized, conversion: project.conversion });
+    // 読み込んだ編集データで使っていない素材(前に重ねていた画像など)は捨てる. 履歴も作り直すので, 戻ることは無い.
+    pruneImageAssets(sanitized.objects.filter((obj) => obj.type === 'image').map((obj) => obj.imageId));
     resetHistory();
     markSaved();
     setStatus('編集データを読み込みました');

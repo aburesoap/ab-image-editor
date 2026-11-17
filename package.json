@@ -1,6 +1,6 @@
 {
   "name": "image-editor",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "private": true,
   "description": "iMage Editor Web 版の開発用設定（テストの実行のみ. サイトの動作には不要）",
   "scripts": {

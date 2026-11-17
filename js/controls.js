@@ -17,6 +17,7 @@ import {
   undo,
 } from './history.js';
 import {
+  addImageLayers,
   addPaint,
   addPaper,
   clearAll,
@@ -24,6 +25,7 @@ import {
   duplicateSelected,
   onTabClick,
   reorderSelected,
+  resetImageAspect,
   setTool,
   setView,
   syncShapeOptions,
@@ -59,6 +61,15 @@ $('penWidth').addEventListener('input', () => {
 syncPenOptions();
 $('addPaper').addEventListener('click', addPaper);
 $('addPaint').addEventListener('click', addPaint);
+// 「＋ 画像」. 選んだ画像(複数可)を, いちばん上に重ねる.
+$('addImage').addEventListener('click', () => $('addImageFile').click());
+$('addImageFile').addEventListener('change', () => {
+  const files = [...($('addImageFile').files || [])];
+  // 同じファイルをもう一度選んでも change が発火するよう, 選択状態を空に戻す.
+  $('addImageFile').value = '';
+  if (files.length) addImageLayers(files);
+});
+$('imageAspect').addEventListener('click', resetImageAspect);
 // 編集パネルの「このレイヤーに描く」. 選んでいるペイントレイヤーを描き先にして, ペンに持ち替える.
 $('paintDraw').addEventListener('click', () => setTool('pen'));
 $('viewEdit').addEventListener('click', () => setView('edit'));

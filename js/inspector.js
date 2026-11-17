@@ -16,7 +16,7 @@ import { $, setDisabled } from './dom.js';
 import { fieldSnapshot, objects, selectedObject, state } from './state.js';
 import { FONT_KEYS, TEXT_FONTS, WEIGHT_LABELS, FONT_WEIGHTS, fontWeights, nearestWeight } from './fonts.js';
 import {
-  canCutout, isBadge, isEffectType, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
+  canCutout, isBadge, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText, moveObject, objectCenter, refWidth,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { objectTypeLabel, syncWindowStyleOption } from './shapes.js';
@@ -78,8 +78,11 @@ export function updateSelectionInspector() {
   // ぼかし・モザイクは色を持たず, 強さだけを持つ. 番号は, 丸の色・数字の色・番号を持つ.
   // ペイントレイヤーは, 中の線をまとめて持つだけで, 色や大きさの欄は無い(不透明度と重ね順だけ).
   const paint = isPaint(obj);
+  // 画像レイヤーは, 位置・大きさ・角度・不透明度だけを持つ.
+  const image = isImage(obj);
   $('paintFields').hidden = !paint;
-  $('shapeFields').hidden = textObject || effect || paint;
+  $('imageFields').hidden = !image;
+  $('shapeFields').hidden = textObject || effect || paint || image;
   $('effectFields').hidden = !effect;
   // ペン・蛍光ペンは線の色と太さだけ, 白地は色だけを持つ. 白地は画像全体に固定なので, 位置・大きさの欄も出さない.
   const pen = isPenType(obj.type);
@@ -160,7 +163,7 @@ export function applyInspector() {
   let last = state.lastShape;
   if (isText(obj)) last = state.lastText;
   else if (isBadge(obj)) last = state.lastBadge;
-  else if (isPaper(obj) || isPaint(obj) || pen) last = {};
+  else if (isPaper(obj) || isPaint(obj) || isImage(obj) || pen) last = {};
 
   if (touched('editX')) {
     const value = number('editX', -100, 200);

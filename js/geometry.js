@@ -7,8 +7,10 @@ import { state } from './state.js';
 export const isLineType = (type) => type === 'line' || type === 'arrow' || type === 'arrow2';
 // 上下・左右が対称でない図形. 画像を90°回すときは, 枠の縦横を保ったまま角度を足す(rotate.js).
 // ペン・蛍光ペンの線も, 描いた向きを保つため同じ扱いにする.
-export const isOrientedType = (type) => ['triangle', 'star', 'balloon', 'blockarrow', 'pen', 'marker'].includes(type);
+export const isOrientedType = (type) => ['triangle', 'star', 'balloon', 'blockarrow', 'pen', 'marker', 'image'].includes(type);
 export const isText = (obj) => obj.type === 'text';
+// 画像レイヤー(元画像の上に重ねた別の画像). 素材の番号(imageId)を持つ.
+export const isImage = (obj) => obj.type === 'image';
 // 下にあるものを加工して隠す範囲(ぼかし・モザイク). 色や描画方法を持たない.
 export const isEffectType = (type) => type === 'blur' || type === 'mosaic';
 // 番号(丸の中に数字). 塗りつぶしの楕円として描き, 数字を重ねる.

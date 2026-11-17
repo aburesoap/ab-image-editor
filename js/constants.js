@@ -10,7 +10,8 @@ export const PROJECT_FORMAT = 'iMage-Editor-project';
 // v7 で, ペン・蛍光ペン(points), 白地(paper), 元画像の埋め込み(image)が増えた.
 // v8 で, ペイントレイヤー(paint. 線の列 strokes を持つ)が増えた.
 // v9 で, くり抜き(cutout)が増えた.
-export const PROJECT_VERSION = 9;
+// v10 で, 画像レイヤー(image. 素材の番号 imageId)と, 重ねた画像の素材(images)が増えた.
+export const PROJECT_VERSION = 10;
 export const SHAPE_TYPES = [
   'rect', 'roundrect', 'ellipse', 'triangle', 'diamond', 'star', 'balloon', 'blockarrow', 'badge', 'line', 'arrow', 'arrow2',
   'blur', 'mosaic', 'pen', 'marker', 'paper', 'paint',

@@ -6,8 +6,9 @@ import {
 import { $, original, setStatus } from './dom.js';
 import { newObjectId, objects, selectedObject, state } from './state.js';
 import {
-  isBadge, isEffectType, isPaint, moveObject,
+  isBadge, isEffectType, isImage, isPaint, moveObject, sourceSize,
 } from './geometry.js';
+import { imageAsset, initialImageFrame, registerImageAsset } from './image-layer.js';
 import { nextBadgeNumber, syncWindowStyleOption } from './shapes.js';
 import { drawEditor } from './render.js';
 import { updateStageView } from './stage.js';
@@ -240,6 +241,69 @@ export function addPaint() {
   setTool('pen');
   updateSelectionInspector();
   showTab('props');
+  commitChange();
+}
+
+// 画像を, 画像レイヤーとしていちばん上に重ねる. 複数なら少しずつずらして重ね, 最後のものを選ぶ.
+// 足せた枚数で解決する.
+export async function addImageLayers(files) {
+  if (!state.sourceImage) return 0;
+  const { w: W, h: H } = sourceSize();
+  let added = 0;
+  let skipped = 0;
+  for (const blob of files) {
+    if (objects.length >= MAX_OBJECTS) break;
+    // 素材の読み込みを待つ間に, 別の画像を開き直していたらやめる.
+    const source = state.sourceImage;
+    const imageId = await registerImageAsset(blob, blob.name || '貼り付けた画像');
+    if (state.sourceImage !== source) return added;
+    if (!imageId) {
+      skipped += 1;
+      continue;
+    }
+    objects.push({
+      id: newObjectId(),
+      type: 'image',
+      imageId,
+      name: imageAsset(imageId).name,
+      style: 'fill',
+      fill: '#ffffff',
+      stroke: '#ffffff',
+      lineWidth: 0,
+      opacity: 1,
+      rotation: 0,
+      hidden: false,
+      locked: false,
+      ...initialImageFrame(imageAsset(imageId).image, W, H, added * 0.03),
+    });
+    added += 1;
+  }
+  if (added) {
+    state.selectedIndex = objects.length - 1;
+    if (state.tool !== 'select' || state.view !== 'edit') setTool('select', true);
+    updateSelectionInspector();
+    showTab('props');
+    commitChange();
+  }
+  const sizeNote = skipped ? `（${skipped} 枚は, 形式に対応していないか大きすぎるため, 重ねられませんでした）` : '';
+  if (added) setStatus(`画像を ${added} 枚重ねました${sizeNote}`);
+  else if (skipped) setStatus('画像を重ねられませんでした. PNG / JPEG / WebP / GIF / BMP / AVIF（60MBまで）を選んでください');
+  return added;
+}
+
+// 選んでいる画像レイヤーの縦横比を, 元の画像と同じにする. 幅はそのままにし, 中心を保って高さを合わせる.
+export function resetImageAspect() {
+  const obj = selectedObject();
+  const asset = obj && isImage(obj) ? imageAsset(obj.imageId) : null;
+  if (!asset || obj.locked) return;
+  const { w: W, h: H } = sourceSize();
+  const widthPx = Math.abs(obj.x2 - obj.x1) * W;
+  const heightPx = widthPx * asset.image.naturalHeight / asset.image.naturalWidth;
+  const cy = (obj.y1 + obj.y2) / 2;
+  const sign = obj.y2 >= obj.y1 ? 1 : -1;
+  obj.y1 = cy - sign * heightPx / H / 2;
+  obj.y2 = cy + sign * heightPx / H / 2;
+  updateSelectionInspector();
   commitChange();
 }
 

@@ -8,6 +8,7 @@ import {
 } from './geometry.js';
 import { drawPen } from './pen.js';
 import { drawPaint } from './paint.js';
+import { drawImageLayer } from './image-layer.js';
 import { fontStack } from './fonts.js';
 
 // 次に置く番号. 置いてある番号の最大値の次にする(1つも無ければ1).
@@ -326,6 +327,10 @@ export function drawShape(ctx, width, height, shape, cropRect) {
     drawPaint(ctx, width, height, shape, cropRect, extra);
     return;
   }
+  if (shape.type === 'image') {
+    drawImageLayer(ctx, width, height, shape, cropRect);
+    return;
+  }
   if (shape.type === 'paper') {
     // 白地は, 切り抜き範囲によらず描画先の全体を覆う.
     ctx.save();
@@ -471,6 +476,7 @@ export function objectTypeLabel(type) {
     marker: '蛍光ペン',
     paper: '白地',
     paint: 'ペイント',
+    image: '画像',
     text: 'テキスト',
   })[type] || '図形';
 }

@@ -977,6 +977,10 @@ button:disabled {
   background: linear-gradient(135deg, transparent 30%, var(--fg) 30%, var(--fg) 46%, transparent 46%), repeating-conic-gradient(#d9dde1 0 25%, #fff 0 50%) 0 0 / 8px 8px;
 }
 
+.layer-swatch.sw-image {
+  background: linear-gradient(150deg, transparent 52%, #5f8f63 52%, #5f8f63 70%, transparent 70%), linear-gradient(210deg, transparent 58%, #3f6e48 58%), radial-gradient(circle at 70% 30%, #f4c95d 0 3px, transparent 3.5px), #cfe3f3;
+}
+
 .layer-swatch.sw-cutout {
   border: 1.5px dashed #6f7a85;
   background: repeating-conic-gradient(#e3e7eb 0 25%, #fff 0 50%) 0 0 / 6px 6px;

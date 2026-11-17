@@ -14,7 +14,7 @@ import {
 import { $, original, setStatus } from './dom.js';
 import { objects, selectedObject, state } from './state.js';
 import {
-  canvasPoint, constrainedEnd, isLineType, isText, moveObject, normalizeAngle, normalizedPoint, refWidth, screenScale,
+  canvasPoint, constrainedEnd, isImage, isLineType, isText, moveObject, normalizeAngle, normalizedPoint, refWidth, screenScale,
 } from './geometry.js';
 import { loadFontsFor } from './text.js';
 import { makeShape, makeText, newShapeStyle } from './shapes.js';
@@ -95,8 +95,19 @@ function dragHandle(rawPoint, snap) {
       const moved = anchor + dir * Math.max(minSide, (value - anchor) * dir);
       return [Math.min(anchor, moved), Math.max(anchor, moved)];
     };
-    const [x0, x1] = span(action.handle.sx, frame.hx, local.x);
-    const [y0, y1] = span(action.handle.sy, frame.hy, local.y);
+    let [x0, x1] = span(action.handle.sx, frame.hx, local.x);
+    let [y0, y1] = span(action.handle.sy, frame.hy, local.y);
+    // 画像の四隅のハンドルは, 縦横の比率を保つ(Shift を押している間は保たない).
+    const { sx, sy } = action.handle;
+    if (isImage(obj) && sx && sy && !snap) {
+      const scale = Math.max((x1 - x0) / (2 * frame.hx), (y1 - y0) / (2 * frame.hy), minSide / (2 * Math.min(frame.hx, frame.hy)));
+      const ax = -sx * frame.hx;
+      const ay = -sy * frame.hy;
+      const bx = ax + sx * 2 * frame.hx * scale;
+      const by = ay + sy * 2 * frame.hy * scale;
+      [x0, x1] = [Math.min(ax, bx), Math.max(ax, bx)];
+      [y0, y1] = [Math.min(ay, by), Math.max(ay, by)];
+    }
     const center = frameToWorld(frame, { x: (x0 + x1) / 2, y: (y0 + y1) / 2 });
     const width = x1 - x0;
     const height = y1 - y0;

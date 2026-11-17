@@ -274,7 +274,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 9);
+  assert.equal(saved.version, 10);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -698,7 +698,7 @@ test('新しい図形は, 編集データに保存され, 読み込むと戻る'
   await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 9);
+  assert.equal(saved.version, 10);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['balloon', 'arrow2']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -947,7 +947,7 @@ test('番号・ぼかし・縁取りは, 編集データに保存され, 読み�
   await setRange('editTextOutlineWidth', 3);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 9);
+  assert.equal(saved.version, 10);
   const [blur, badge, text] = saved.document.objects;
   assert.equal(Math.round(blur.strength * 400), 20);
   assert.equal(badge.number, 1);
@@ -1148,7 +1148,7 @@ test('元画像を含めて保存した編集データは, 別の画像を開い
   await page.click('#addPaper');
   const file = await saveProjectToFile('#saveProjectEmbedded');
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 9);
+  assert.equal(saved.version, 10);
   assert.equal(saved.image.type, 'image/png');
   assert.ok(saved.image.data.length > 100);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['paper', 'pen']);
@@ -1326,7 +1326,7 @@ test('ペイントレイヤーは, 編集データに保存され, 画像と一�
   await drawPen([[0.2, 0.05], [0.2, 0.15]]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 9);
+  assert.equal(saved.version, 10);
   assert.deepEqual(saved.document.objects[0].strokes.map((s) => s.tool), ['pen', 'eraser']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -1441,7 +1441,7 @@ test('ペイントレイヤーもくり抜け, くり抜きは編集データ(�
   assert.ok(near(line, RED), `穴の外の線 (実際: ${line})`);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 9);
+  assert.equal(saved.version, 10);
   assert.equal(saved.document.objects[1].cutout, true);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -1449,4 +1449,144 @@ test('ペイントレイヤーもくり抜け, くり抜きは編集データ(�
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
   assert.deepEqual(await layerNames(), ['楕円・くり抜き', 'ペイント（1 本）']);
   assert.ok(near((await resultPixels([[0.5, 0.5]]))[0], BLACK));
+});
+
+// ---- v2.8.0 ----
+// 1色で塗った画像(PNG). 重ねる画像に使う.
+async function makeSolid(w, h, color) {
+  const base64 = await page.evaluate(([width, height, fill]) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = fill;
+    ctx.fillRect(0, 0, width, height);
+    return canvas.toDataURL('image/png').split(',')[1];
+  }, [w, h, color]);
+  return Buffer.from(base64, 'base64');
+}
+
+const GREEN = [0, 200, 0];
+
+async function addImageLayer(w, h, name = 'green.png', color = '#00c800') {
+  await page.setInputFiles('#addImageFile', { name, mimeType: 'image/png', buffer: await makeSolid(w, h, color) });
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('重ねました'));
+}
+
+test('「＋ 画像」で選んだ画像は, そのままの大きさで中央に重なり, 画像の欄だけが出る', async () => {
+  await addImageLayer(100, 50);
+  assert.deepEqual(await layerNames(), ['画像（green.png）']);
+  assert.match(await selectedName(), /画像/);
+  assert.deepEqual(await lastFramePx(), [150, 125, 250, 175]);
+  assert.equal(await page.isVisible('#imageFields'), true);
+  assert.equal(await page.isVisible('#shapeFields'), false);
+  const [inside, outside] = await resultPixels([[0.5, 0.5], [0.5, 0.3]]);
+  assert.ok(near(inside, GREEN), `画像の中 (実際: ${inside})`);
+  assert.ok(near(outside, BLACK), `画像の外 (実際: ${outside})`);
+  // 選択の道具で, 画像の上を押すと選べる.
+  await page.keyboard.press('Escape');
+  const p = await at(0.5, 0.5);
+  await page.mouse.click(p.x, p.y);
+  assert.match(await selectedName(), /画像/);
+});
+
+test('元画像より大きい画像は, 縦横の比率を保って元画像の80%に収める. 元に戻すで消える', async () => {
+  await addImageLayer(800, 300);
+  // 幅 320px(400 × 80%)に合わせて 0.4 倍 → 320 × 120px.
+  assert.deepEqual(await lastFramePx(), [40, 90, 360, 210]);
+  await page.click('#undo');
+  assert.equal(await objectCount(), 0);
+  await page.click('#redo');
+  assert.deepEqual(await layerNames(), ['画像（green.png）']);
+  assert.ok(near((await resultPixels([[0.5, 0.5]]))[0], GREEN));
+});
+
+test('画像の四隅のハンドルは縦横の比率を保ち, Shift で比率を外せる. 「元の縦横比に戻す」で戻る', async () => {
+  await addImageLayer(100, 50);
+  const drag = async (from, to, shift = false) => {
+    const a = await at(...from);
+    const b = await at(...to);
+    if (shift) await page.keyboard.down('Shift');
+    await page.mouse.move(a.x, a.y);
+    await page.mouse.down();
+    await page.mouse.move(b.x, b.y, { steps: 5 });
+    await page.mouse.up();
+    if (shift) await page.keyboard.up('Shift');
+  };
+  // 右下の隅を右へ大きく動かす → 左上を固定し, 幅に合わせて高さも 1.5 倍.
+  await drag([250 / 400, 175 / 300], [300 / 400, 180 / 300]);
+  assert.deepEqual(await lastFramePx(), [150, 125, 300, 200]);
+  // Shift を押しながらなら, 指の位置どおり.
+  await drag([300 / 400, 200 / 300], [320 / 400, 160 / 300], true);
+  assert.deepEqual(await lastFramePx(), [150, 125, 320, 160]);
+  await page.click('#imageAspect');
+  // 幅 170px のまま, 高さを 85px にする(中心は保つ).
+  const [x1, y1, x2, y2] = await lastFramePx();
+  assert.deepEqual([x1, x2], [150, 320]);
+  assert.ok(Math.abs(y2 - y1 - 85) <= 1, `高さ (実際: ${y2 - y1})`);
+});
+
+test('重ねた画像は, 元画像を含めない編集データにも入り(形式 v10), 読み込むと戻る', async () => {
+  await addImageLayer(100, 50, 'green.png');
+  await addImageLayer(40, 40, 'blue.png', '#0000ff');
+  const file = await saveProjectToFile();
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 10);
+  assert.equal(saved.image, undefined, '元画像は含めない');
+  assert.equal(saved.images.length, 2);
+  assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['image', 'image']);
+  await page.keyboard.press('Escape');
+  await page.click('#clearObjects');
+  assert.equal(await objectCount(), 0);
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.deepEqual(await layerNames(), ['画像（blue.png）', '画像（green.png）']);
+  const [blue, green] = await resultPixels([[0.5, 0.5], [0.4, 0.5]]);
+  assert.ok(near(blue, [0, 0, 255]), `上の画像 (実際: ${blue})`);
+  assert.ok(near(green, GREEN), `下の画像 (実際: ${green})`);
+});
+
+test('Shift を押しながらのドロップと Ctrl+Shift+V では, 開き直さずに画像を重ねる', async () => {
+  await drawRect([0.05, 0.05], [0.15, 0.15]);
+  const buffer = await makeSolid(60, 30, '#00c800');
+  // 確認の画面は出ない(出たら失敗にする).
+  page.on('dialog', (dialog) => { errors.push(`確認の画面: ${dialog.message()}`); dialog.dismiss(); });
+  await page.evaluate(async (bytes) => {
+    const data = new DataTransfer();
+    data.items.add(new File([new Uint8Array(bytes)], 'drop.png', { type: 'image/png' }));
+    window.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true, shiftKey: true }));
+  }, [...buffer]);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('重ねました'));
+  assert.deepEqual(await layerNames(), ['画像（drop.png）', '長方形・塗り']);
+  assert.match(await status(), /1 枚/);
+
+  await page.keyboard.press('Escape');
+  // クリップボードに画像を入れてから, Ctrl+Shift+V を押す.
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60;
+    canvas.height = 30;
+    canvas.getContext('2d').fillRect(0, 0, 60, 30);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+  });
+  await page.keyboard.press('Control+Shift+V');
+  await page.waitForFunction(() => document.querySelectorAll('#layerList .layer-row').length === 3);
+  assert.match(await status(), /画像を 1 枚重ねました/);
+  // 元画像はそのまま(400 × 300 px).
+  assert.equal(await page.evaluate(() => document.getElementById('original').width), 400);
+});
+
+test('画像を開き直すと, 重ねていた画像は消える. 画像レイヤーでもくり抜ける', async () => {
+  await addImageLayer(200, 100);
+  await page.keyboard.press('Escape');
+  await drawCutout('rect', [0.45, 0.45], [0.55, 0.55]);
+  const [hole, image] = await resultPixels([[0.5, 0.5], [0.35, 0.5]]);
+  assert.ok(near(hole, BLACK), `穴 (実際: ${hole})`);
+  assert.ok(near(image, GREEN), `穴の外の画像 (実際: ${image})`);
+  await page.keyboard.press('Escape');
+  page.once('dialog', (dialog) => dialog.accept());
+  await loadImage();
+  assert.equal(await objectCount(), 0);
+  assert.equal(await page.evaluate(async () => (await import(`${location.origin}/js/image-layer.js`)).imageAssets.size), 0);
 });

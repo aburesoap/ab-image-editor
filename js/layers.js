@@ -3,7 +3,7 @@
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
 import {
-  isBadge, isCutout, isEffectType, isLineType, isPaint, isPaper, isPenType, isText,
+  isBadge, isCutout, isEffectType, isImage, isLineType, isPaint, isPaper, isPenType, isText,
 } from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
 
@@ -37,6 +37,12 @@ function baseName(obj) {
     return line.length > NAME_LIMIT ? `${line.slice(0, NAME_LIMIT)}…` : line;
   }
   if (isBadge(obj)) return `番号 ${obj.number ?? ''}`;
+  // 画像は, 開いたときのファイル名を添える.
+  if (isImage(obj)) {
+    const name = String(obj.name || '').trim();
+    if (!name) return '画像';
+    return `画像（${name.length > NAME_LIMIT ? `${name.slice(0, NAME_LIMIT)}…` : name}）`;
+  }
   // ペイントは, 描いた線の本数(消しゴムも1本と数える. 元に戻すの単位と同じ)を添える.
   if (isPaint(obj)) return `ペイント（${(obj.strokes || []).length} 本）`;
   if (isLineType(obj.type) || isEffectType(obj.type) || isPenType(obj.type) || isPaper(obj)) return objectTypeLabel(obj.type);
@@ -47,6 +53,7 @@ function baseName(obj) {
 function swatchOf(obj) {
   if (isCutout(obj)) return { kind: 'cutout', fg: '', bg: '' };
   if (isText(obj)) return { kind: 'text', fg: obj.color, bg: obj.transparent ? '' : obj.bg };
+  if (isImage(obj)) return { kind: 'image', fg: '', bg: '' };
   if (isLineType(obj.type) || isPenType(obj.type)) return { kind: 'line', fg: obj.stroke, bg: '' };
   if (isPaper(obj)) return { kind: 'fill', fg: obj.fill, bg: '' };
   if (isPaint(obj)) {

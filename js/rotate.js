@@ -21,7 +21,7 @@ function turnObject(obj, dir, W, H) {
     return;
   }
   // 元画像のレイヤーは, 向き(state.rotation)で回して描くので, 何もしない.
-  if (obj.type === 'base') return;
+  if (obj.type === 'base' || obj.type === 'group') return;
   obj.lineWidth = Number(obj.lineWidth || 0) * widthRatio;
   if (obj.type === 'paint') {
     // ペイントの線は, 画像上の位置で持っているので, 点を1つずつ回す. 列は作り直す(履歴に残した前の列を書き換えないため).

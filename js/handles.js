@@ -8,9 +8,14 @@ import {
 } from './geometry.js';
 import { hitPen } from './pen.js';
 import { textLayout } from './text.js';
+import {
+  hiddenDeep, isGroup, leavesOf, lockedDeep,
+} from './tree.js';
 
 // オブジェクトの位置関係をcanvas上のpxで表す. 回転は中心を軸に, 描画処理と同じ向きで扱う.
 export function objectFrame(obj) {
+  // グループは, 中身(隠したものを除く)をまとめて囲む, 画面に沿った枠.
+  if (isGroup(obj)) return groupFrame(obj);
   const theta = Number(obj.rotation || 0) * Math.PI / 180;
   const base = { theta, cos: Math.cos(theta), sin: Math.sin(theta) };
   if (isText(obj)) {
@@ -33,6 +38,34 @@ export function objectFrame(obj) {
     cy: (a.y + b.y) / 2,
     hx: Math.abs(b.x - a.x) / 2,
     hy: Math.abs(b.y - a.y) / 2,
+  };
+}
+
+function groupFrame(group) {
+  let left = Infinity;
+  let top = Infinity;
+  let right = -Infinity;
+  let bottom = -Infinity;
+  leavesOf(group).filter((obj) => !obj.hidden && !isFullLayer(obj)).forEach((obj) => {
+    const f = objectFrame(obj);
+    [[-1, -1], [1, -1], [1, 1], [-1, 1]].forEach(([sx, sy]) => {
+      const x = f.cx + sx * f.hx * f.cos - sy * f.hy * f.sin;
+      const y = f.cy + sx * f.hx * f.sin + sy * f.hy * f.cos;
+      left = Math.min(left, x);
+      right = Math.max(right, x);
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+    });
+  });
+  if (left > right) {
+    left = 0;
+    right = 0;
+    top = 0;
+    bottom = 0;
+  }
+  return {
+    theta: 0, cos: 1, sin: 0, a: null, b: null,
+    cx: (left + right) / 2, cy: (top + bottom) / 2, hx: (right - left) / 2, hy: (bottom - top) / 2,
   };
 }
 
@@ -82,9 +115,11 @@ function hitTestObject(obj, point, k) {
 // 前面にあるものから順に調べ, 最初に当たったものの添字を返す.
 export function findObjectAtPoint(point) {
   const k = screenScale();
+  const map = new Map(objects.map((obj) => [obj.id, obj]));
   for (let index = objects.length - 1; index >= 0; index -= 1) {
-    // 隠したもの・ロックしたものは, プレビュー上では選べない(レイヤー一覧からは選べる).
-    if (objects[index].hidden || objects[index].locked) continue;
+    // 隠したもの・ロックしたもの(グループで隠した・ロックしたものも)は, プレビュー上では選べない(レイヤー一覧からは選べる).
+    // グループの見出しは描かれないので, 当たらない(中身に当たったら, 選ぶ側でグループへ読み替える).
+    if (isGroup(objects[index]) || hiddenDeep(objects[index], map) || lockedDeep(objects[index], map)) continue;
     if (hitTestObject(objects[index], point, k)) return index;
   }
   return -1;
@@ -93,8 +128,8 @@ export function findObjectAtPoint(point) {
 // ハンドル一覧. 長方形・楕円・三角形は8方向のリサイズと回転, 直線・矢印は両端の移動.
 // テキストは大きさが文字サイズで決まるため, 四隅(拡大縮小)と回転だけを出す.
 export function objectHandles(obj) {
-  // 白地・ペイントは画像全体に固定なので, ハンドルを出さない.
-  if (isFullLayer(obj)) return [];
+  // 白地・ペイントは画像全体に固定なので, ハンドルを出さない. グループも, まとめて動かすだけ.
+  if (isFullLayer(obj) || isGroup(obj)) return [];
   const frame = objectFrame(obj);
   if (isLineType(obj.type)) {
     return [

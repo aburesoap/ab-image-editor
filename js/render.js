@@ -13,6 +13,7 @@ import { cropHandles, objectFrame, objectHandles } from './handles.js';
 import { fitCanvases } from './stage.js';
 import { isMulti, selectedObjects } from './selection.js';
 import { selectionBounds, strokeSelectMode } from './paint-select.js';
+import { hiddenDeep, isGroup } from './tree.js';
 
 function drawObject(ctx, width, height, obj, cropRect) {
   if (isText(obj)) drawText(ctx, width, height, obj, cropRect);
@@ -26,16 +27,17 @@ export function renderComposite(ctx, width, height, cropRect) {
   // 元画像も, 元画像のレイヤー(base)として重ね順の中で描く(shapes.js).
   // 置いている途中の図形は, いちばん上に置かれるものとして一緒に描く(くり抜きなら, その場で穴が見える).
   const list = state.currentShape ? [...objects, state.currentShape] : objects;
+  const map = new Map(list.map((obj) => [obj.id, obj]));
   list.forEach((obj, index) => {
-    // くり抜きは自分では描かず, 下のレイヤーと一緒に描く.
-    if (isCutout(obj)) return;
-    // すぐ上に続いているくり抜き(隠したものを除く)を集める.
+    // くり抜きは自分では描かず, 下のレイヤーと一緒に描く. グループ(見出し)は描かない.
+    if (isCutout(obj) || isGroup(obj)) return;
+    // すぐ上に続いているくり抜き(隠したものを除く)を集める. グループの見出しは飛ばして続きを見る.
     const cutouts = [];
-    for (let j = index + 1; j < list.length && isCutout(list[j]); j += 1) {
-      if (!list[j].hidden) cutouts.push(list[j]);
+    for (let j = index + 1; j < list.length && (isCutout(list[j]) || isGroup(list[j])); j += 1) {
+      if (isCutout(list[j]) && !hiddenDeep(list[j], map)) cutouts.push(list[j]);
     }
-    // 隠したオブジェクトは, プレビューにも書き出しにも描かない.
-    if (obj.hidden) return;
+    // 隠したオブジェクト(隠したグループの中のものも)は, プレビューにも書き出しにも描かない.
+    if (hiddenDeep(obj, map)) return;
     if (cutouts.length) drawWithCutouts(ctx, width, height, obj, cutouts, cropRect, drawObject);
     else drawObject(ctx, width, height, obj, cropRect);
   });
@@ -204,6 +206,11 @@ export function requestDraw() {
 function drawSelection(obj) {
   const k = screenScale();
   const frame = objectFrame(obj);
+  // グループは, 中身をまとめて囲む枠だけ(ハンドルは出さない).
+  if (isGroup(obj)) {
+    drawFrameOnly(obj);
+    return;
+  }
 
   if (!isLineType(obj.type)) {
     const hx = Math.max(frame.hx, MIN_SHAPE_SIDE * k);

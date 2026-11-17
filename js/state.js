@@ -61,6 +61,8 @@ export const state = {
   nextObjectId: 1,
   // 整列のガイドで表示する線({ x: [...], y: [...] }, canvas上のpx). 動かしている間だけ持つ.
   guideLines: null,
+  // レイヤー一覧で閉じているグループの id. 画面の表示だけの設定で, 保存しない.
+  collapsedIds: new Set(),
 };
 
 // 選択. 1つだけ選んでいるときは selectedIndex(オブジェクトの添字), 2つ以上のときは multiIds(オブジェクトの id の列)に持つ.

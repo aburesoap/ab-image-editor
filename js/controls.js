@@ -26,6 +26,8 @@ import {
   onTabClick,
   reorderSelected,
   resetImageAspect,
+  groupSelected,
+  ungroupSelected,
   setTool,
   setView,
   syncShapeOptions,
@@ -101,6 +103,8 @@ $('duplicateObject').addEventListener('click', duplicateSelected);
 $('deleteObject').addEventListener('click', deleteSelected);
 $('multiDuplicate').addEventListener('click', duplicateSelected);
 $('multiDelete').addEventListener('click', deleteSelected);
+$('groupObjects').addEventListener('click', groupSelected);
+$('ungroupObject').addEventListener('click', ungroupSelected);
 orderButtons.forEach((id) => {
   $(id).addEventListener('click', () => reorderSelected(id === 'bringFront' ? 'front' : 'back'));
 });

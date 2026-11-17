@@ -36,8 +36,11 @@ import { updateSelectionInspector } from './inspector.js';
 import { commitChange, pushHistory } from './history.js';
 import { afterPlacement, showTab } from './actions.js';
 import {
-  isMulti, isSelectedIndex, objectsInRect, selectMany, selectedObjects, toggleSelected,
+  isMulti, isSelectedIndex, objectsInRect, selectMany, selectedLeaves, selectedObjects, toggleSelected,
 } from './selection.js';
+import {
+  isGroup, leavesOf, lockedDeep, outermost,
+} from './tree.js';
 import {
   movedStrokes, selectedStrokeIndices, selectionBounds, setStrokeSelection, strokeSelectMode, strokesInRect,
 } from './paint-select.js';
@@ -212,7 +215,15 @@ original.addEventListener('pointerdown', (event) => {
     state.currentShape = makeShape(start, start, newShapeStyle());
     state.pointerAction = { mode: 'shape', start };
   } else if (state.tool === 'select') {
-    const index = findObjectAtPoint(point);
+    // グループの中身に当たったら, いちばん外側のグループを選ぶ. Ctrl(⌘)を押していれば, 中身そのものを選ぶ.
+    const hit = findObjectAtPoint(point);
+    const index = hit < 0 || event.ctrlKey || event.metaKey ? hit : objects.indexOf(outermost(objects[hit]));
+    // まとめて動かす. グループは中身を動かし, ロック中のものは動かさない.
+    const moveMany = (leaves) => ({
+      mode: 'multi-move',
+      start: normalizedPoint(point),
+      initial: leaves.filter((obj) => !lockedDeep(obj)).map((obj) => ({ obj, copy: { ...obj } })),
+    });
     // 何も無い所からのドラッグは, 範囲選択. base は, 範囲で選んだものに足す元の選択(Shift を押しているとき).
     const marquee = (base) => ({
       mode: 'marquee', x1: point.x, y1: point.y, x2: point.x, y2: point.y, moved: false, base,
@@ -222,12 +233,11 @@ original.addEventListener('pointerdown', (event) => {
       if (index >= 0) toggleSelected(index);
       state.pointerAction = index >= 0 ? null : marquee(selectedObjects());
     } else if (index >= 0 && isMulti() && isSelectedIndex(index)) {
-      // 選んでいるものの1つを掴んだら, まとめて動かす. ロック中のものは動かさない.
-      state.pointerAction = {
-        mode: 'multi-move',
-        start: normalizedPoint(point),
-        initial: selectedObjects().map((obj) => ({ obj, copy: { ...obj } })),
-      };
+      // 選んでいるものの1つを掴んだら, まとめて動かす.
+      state.pointerAction = moveMany(selectedLeaves());
+    } else if (index >= 0 && isGroup(objects[index])) {
+      state.selectedIndex = index;
+      state.pointerAction = moveMany(leavesOf(objects[index]));
     } else if (index >= 0) {
       state.selectedIndex = index;
       state.pointerAction = {

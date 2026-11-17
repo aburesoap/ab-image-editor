@@ -7,6 +7,9 @@ import {
 } from './geometry.js';
 import { objectTypeLabel } from './shapes.js';
 import { isSelectedIndex } from './selection.js';
+import {
+  ancestors, hasSibling, hiddenDeep, isGroup,
+} from './tree.js';
 
 const STYLE_LABELS = { fill: '塗り', stroke: '枠線', window: '窓' };
 const NAME_LIMIT = 24;
@@ -17,6 +20,8 @@ const ICONS = {
   lock: [['rect', { x: 5, y: 11, width: 14, height: 9 }], ['path', { d: 'M8 11V8a4 4 0 0 1 8 0v3' }]],
   unlock: [['rect', { x: 5, y: 11, width: 14, height: 9 }], ['path', { d: 'M8 11V8a4 4 0 0 1 7.6-1.8' }]],
   up: [['path', { d: 'M6 15l6-7 6 7z', class: 'solid' }]],
+  open: [['path', { d: 'M6 9l6 7 6-7z', class: 'solid' }]],
+  closed: [['path', { d: 'M9 6l7 6-7 6z', class: 'solid' }]],
   down: [['path', { d: 'M6 9l6 7 6-7z', class: 'solid' }]],
   trash: [['path', { d: 'M4 7h16M10 7V4h4v3M6 7l1 13h10l1-13M10 11v6M14 11v6' }]],
 };
@@ -37,6 +42,7 @@ function baseName(obj) {
     if (!line) return '（空のテキスト）';
     return line.length > NAME_LIMIT ? `${line.slice(0, NAME_LIMIT)}…` : line;
   }
+  if (isGroup(obj)) return obj.name || 'グループ';
   if (isBase(obj)) return state.sourceName ? `元画像（${state.sourceName.length > NAME_LIMIT ? `${state.sourceName.slice(0, NAME_LIMIT)}…` : state.sourceName}）` : '元画像';
   if (isBadge(obj)) return `番号 ${obj.number ?? ''}`;
   // 画像は, 開いたときのファイル名を添える.
@@ -53,6 +59,7 @@ function baseName(obj) {
 
 // 見本の色. 図形は見た目に使われている色, テキストは文字色と背景色.
 function swatchOf(obj) {
+  if (isGroup(obj)) return { kind: 'group', fg: '', bg: '' };
   if (isCutout(obj)) return { kind: 'cutout', fg: '', bg: '' };
   if (isText(obj)) return { kind: 'text', fg: obj.color, bg: obj.transparent ? '' : obj.bg };
   if (isImage(obj) || isBase(obj)) return { kind: 'image', fg: '', bg: '' };
@@ -119,13 +126,16 @@ function deleteButton(locked, base = false) {
   return button;
 }
 
-function buildRow(obj, index) {
+function buildRow(obj, index, depth) {
   const row = document.createElement('li');
   row.className = 'layer-row';
   row.dataset.index = String(index);
+  // グループの中のものは, 深さに合わせて字下げする.
+  row.style.setProperty('--depth', String(depth));
+  row.classList.toggle('is-group', isGroup(obj));
   const selected = isSelectedIndex(index);
   row.classList.toggle('selected', selected);
-  row.classList.toggle('is-hidden', Boolean(obj.hidden));
+  row.classList.toggle('is-hidden', hiddenDeep(obj));
   row.classList.toggle('is-locked', Boolean(obj.locked));
   row.classList.toggle('is-base', isBase(obj));
 
@@ -154,12 +164,27 @@ function buildRow(obj, index) {
   name.className = 'layer-name';
   name.textContent = layerName(obj);
   main.append(swatch, name);
+  // グループは, 開閉のボタンを名前の前に置く(ボタンの中にボタンは置けないので, 行に並べる).
+  let fold = null;
+  if (isGroup(obj)) {
+    const closed = state.collapsedIds.has(obj.id);
+    fold = document.createElement('button');
+    fold.type = 'button';
+    fold.className = 'layer-icon layer-fold';
+    fold.dataset.act = 'fold';
+    const label = closed ? '開く' : '閉じる';
+    fold.title = label;
+    fold.setAttribute('aria-label', label);
+    fold.setAttribute('aria-expanded', String(!closed));
+    fold.append(icon(closed ? 'closed' : 'open'));
+  }
 
   row.append(
     grip,
+    ...(fold ? [fold] : []),
     main,
-    stepButton('up', 'up', 'ひとつ前面へ', index === objects.length - 1),
-    stepButton('down', 'down', 'ひとつ背面へ', index === 0),
+    stepButton('up', 'up', 'ひとつ前面へ', !hasSibling(index, 1)),
+    stepButton('down', 'down', 'ひとつ背面へ', !hasSibling(index, -1)),
     toggleButton('visible', !obj.hidden, 'eye', 'eyeOff', obj.hidden ? '表示する' : '隠す'),
     toggleButton('lock', Boolean(obj.locked), 'lock', 'unlock', obj.locked ? 'ロックを解除' : 'ロックする'),
     deleteButton(Boolean(obj.locked), isBase(obj)),
@@ -170,7 +195,8 @@ function buildRow(obj, index) {
 function signature() {
   return `${state.selectedIndex}#${state.multiIds.join(',')}#${objects.map((obj) => {
     const sw = swatchOf(obj);
-    return [obj.type, layerName(obj), sw.kind, sw.fg, sw.bg, obj.hidden ? 1 : 0, obj.locked ? 1 : 0].join('|');
+    return [obj.type, layerName(obj), sw.kind, sw.fg, sw.bg, obj.hidden ? 1 : 0, obj.locked ? 1 : 0, obj.parent ?? '',
+      state.collapsedIds.has(obj.id) ? 1 : 0].join('|');
   }).join('\n')}`;
 }
 
@@ -185,8 +211,15 @@ export function renderLayerList() {
   const focusAct = focused?.dataset.act;
   const focusIndex = focused?.closest('.layer-row')?.dataset.index;
 
+  // 前面から順に並べる. 閉じているグループの中身は出さない.
+  const map = new Map(objects.map((obj) => [obj.id, obj]));
   const rows = [];
-  for (let index = objects.length - 1; index >= 0; index -= 1) rows.push(buildRow(objects[index], index));
+  for (let index = objects.length - 1; index >= 0; index -= 1) {
+    const obj = objects[index];
+    const outer = ancestors(obj, map);
+    if (outer.some((group) => state.collapsedIds.has(group.id))) continue;
+    rows.push(buildRow(obj, index, outer.length));
+  }
   list.replaceChildren(...rows);
   $('layerEmpty').hidden = objects.length > 0;
   $('layerCount').textContent = objects.length ? String(objects.length) : '';

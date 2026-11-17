@@ -5,7 +5,9 @@ import { state } from './state.js';
 import { drawEditor } from './render.js';
 import { updateSelectionInspector } from './inspector.js';
 import { commitChange, redo, undo } from './history.js';
-import { deleteSelected, selectAll, setTool } from './actions.js';
+import {
+  deleteSelected, groupSelected, selectAll, setTool, ungroupSelected,
+} from './actions.js';
 import { isMulti } from './selection.js';
 import {
   clearStrokeSelection, selectedStrokeIndices, setStrokeSelection, strokeSelectMode, strokesWithout,
@@ -54,6 +56,11 @@ document.addEventListener('keydown', (event) => {
   } else if (key === 'escape' && strokeSelectMode() && selectedStrokeIndices(strokeSelectMode()).length) {
     clearStrokeSelection();
     drawEditor();
+  } else if (modifier && !event.altKey && !typing && key === 'g' && state.sourceImage) {
+    // Ctrl+G でグループにし, Ctrl+Shift+G で解く.
+    event.preventDefault();
+    if (event.shiftKey) ungroupSelected();
+    else groupSelected();
   } else if (modifier && !typing && (key === 'z' || key === 'y')) {
     event.preventDefault();
     if (key === 'y' || event.shiftKey) redo();

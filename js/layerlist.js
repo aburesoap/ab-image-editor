@@ -4,7 +4,7 @@
 import { $ } from './dom.js';
 import { objects, state } from './state.js';
 import {
-  deleteObjectAt, moveObjectTo, selectObject, setTool, toggleHidden, toggleLocked,
+  deleteObjectAt, dropObject, selectObject, setTool, stepObject, toggleHidden, toggleLocked,
 } from './actions.js';
 import { toggleSelected } from './selection.js';
 import { updateSelectionInspector } from './inspector.js';
@@ -24,7 +24,14 @@ list.addEventListener('click', (event) => {
   if (!button || !state.sourceImage) return;
   const index = rowIndex(button);
   const act = button.dataset.act;
-  if (act === 'visible') toggleHidden(index);
+  if (act === 'fold') {
+    // グループの開閉. 画面の表示だけなので, 履歴には残さない.
+    const id = objects[index].id;
+    if (state.collapsedIds.has(id)) state.collapsedIds.delete(id);
+    else state.collapsedIds.add(id);
+    updateSelectionInspector();
+    list.querySelector(`.layer-row[data-index="${index}"] [data-act="fold"]`)?.focus({ preventScroll: true });
+  } else if (act === 'visible') toggleHidden(index);
   else if (act === 'lock') toggleLocked(index);
   else if (act === 'delete') {
     deleteObjectAt(index);
@@ -33,10 +40,10 @@ list.addEventListener('click', (event) => {
     next?.querySelector('[data-act="delete"]')?.focus({ preventScroll: true });
   }
   else if (act === 'up' || act === 'down') {
-    const to = index + (act === 'up' ? 1 : -1);
-    moveObjectTo(index, to);
+    const obj = objects[index];
+    stepObject(index, act === 'up' ? 1 : -1);
     // 続けて押せるよう, 動かした先の行の同じボタンへ焦点を移す. 端で無効になった場合は, 行そのものへ.
-    const row = list.querySelector(`.layer-row[data-index="${to}"]`);
+    const row = list.querySelector(`.layer-row[data-index="${objects.indexOf(obj)}"]`);
     const next = row?.querySelector(`[data-act="${act}"]`);
     (next && !next.disabled ? next : row?.querySelector('.layer-main'))?.focus({ preventScroll: true });
   } else if (event.ctrlKey || event.metaKey || event.shiftKey) {
@@ -54,13 +61,16 @@ list.addEventListener('keydown', (event) => {
   if (!button || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
   event.preventDefault();
   const index = rowIndex(button);
-  // 上の行ほど前面(添字が大きい).
-  const step = event.key === 'ArrowUp' ? 1 : -1;
   if (event.altKey) {
+    // Alt+↑↓ で, 同じグループの中で重ね順を1つ動かす.
     if (state.selectedIndex !== index) selectObject(index);
-    moveObjectTo(index, index + step);
-  } else if (objects[index + step]) {
-    selectObject(index + step);
+    stepObject(index, event.key === 'ArrowUp' ? 1 : -1);
+  } else {
+    // ↑↓ で, 一覧の上下の行へ(閉じたグループの中は飛ばす).
+    const all = rows();
+    const position = all.indexOf(button.closest('.layer-row'));
+    const next = all[position + (event.key === 'ArrowUp' ? -1 : 1)];
+    if (next) selectObject(Number(next.dataset.index));
   }
 });
 
@@ -117,7 +127,10 @@ function finishDrag(event) {
   drag = null;
   clearMarks();
   if (event.type !== 'pointerup') return;
-  const newPosition = slot > position ? slot - 1 : slot;
-  if (newPosition !== position) moveObjectTo(index, objects.length - 1 - newPosition);
+  // 元の位置のすぐ上下へ差し込んでも, 順番は変わらない.
+  if (slot === position || slot === position + 1) return;
+  // 差し込んだ所のすぐ下の行の前面へ移し, その行と同じグループに入れる. いちばん下なら最背面へ.
+  const below = rows()[slot];
+  dropObject(index, below ? objects[Number(below.dataset.index)] : null);
 }
 ['pointerup', 'pointercancel', 'lostpointercapture'].forEach((name) => list.addEventListener(name, finishDrag));

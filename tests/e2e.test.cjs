@@ -277,7 +277,7 @@ test('編集データを保存して読み込むと, 非表示・ロックも元
   const before = await layerClasses();
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
 
   // 「すべて消去」は, 何も選んでいないときに表示される.
   await page.keyboard.press('Escape');
@@ -701,7 +701,7 @@ test('新しい図形は, 編集データに保存され, 読み込むと戻る'
   await drawShapeOf('arrow2', [0.5, 0.5], [0.9, 0.9]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['base', 'balloon', 'arrow2']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -950,7 +950,7 @@ test('番号・ぼかし・縁取りは, 編集データに保存され, 読み�
   await setRange('editTextOutlineWidth', 3);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
   const [, blur, badge, text] = saved.document.objects;
   assert.equal(Math.round(blur.strength * 400), 20);
   assert.equal(badge.number, 1);
@@ -1151,7 +1151,7 @@ test('元画像を含めて保存した編集データは, 別の画像を開い
   await page.click('#addPaper');
   const file = await saveProjectToFile('#saveProjectEmbedded');
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
   assert.equal(saved.image.type, 'image/png');
   assert.ok(saved.image.data.length > 100);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['base', 'paper', 'pen']);
@@ -1329,7 +1329,7 @@ test('ペイントレイヤーは, 編集データに保存され, 画像と一�
   await drawPen([[0.2, 0.05], [0.2, 0.15]]);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
   assert.deepEqual(saved.document.objects[1].strokes.map((s) => s.tool), ['pen', 'eraser']);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -1444,7 +1444,7 @@ test('ペイントレイヤーもくり抜け, くり抜きは編集データ(�
   assert.ok(near(line, RED), `穴の外の線 (実際: ${line})`);
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
   assert.equal(saved.document.objects[2].cutout, true);
   await page.keyboard.press('Escape');
   await page.click('#clearObjects');
@@ -1534,7 +1534,7 @@ test('重ねた画像は, 元画像を含めない編集データにも入り(�
   await addImageLayer(40, 40, 'blue.png', '#0000ff');
   const file = await saveProjectToFile();
   const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-  assert.equal(saved.version, 11);
+  assert.equal(saved.version, 12);
   assert.equal(saved.image, undefined, '元画像は含めない');
   assert.equal(saved.images.length, 2);
   assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['base', 'image', 'image']);
@@ -1574,7 +1574,7 @@ test('Shift を押しながらのドロップと Ctrl+Shift+V では, 開き直�
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
   });
   await page.keyboard.press('Control+Shift+V');
-  await page.waitForFunction(() => document.querySelectorAll('#layerList .layer-row').length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('#layerList .layer-row:not(.is-base)').length === 3);
   assert.match(await status(), /画像を 1 枚重ねました/);
   // 元画像はそのまま(400 × 300 px).
   assert.equal(await page.evaluate(() => document.getElementById('original').width), 400);
@@ -1598,7 +1598,7 @@ test('画像を開き直すと, 重ねていた画像は消える. 画像レイ�
 // すべてのオブジェクトの枠を, 画像上の画素で読む(背面から順).
 const framesPx = () => page.evaluate(async ([w, h]) => {
   const { objects } = await import(`${location.origin}/js/state.js`);
-  return objects.filter((obj) => obj.type !== 'base').map((obj) => [obj.x1 * w, obj.y1 * h, obj.x2 * w, obj.y2 * h].map((v) => Math.round(v)));
+  return objects.filter((obj) => obj.type !== 'base' && obj.type !== 'group').map((obj) => [obj.x1 * w, obj.y1 * h, obj.x2 * w, obj.y2 * h].map((v) => Math.round(v)));
 }, [IMAGE_W, IMAGE_H]);
 const selectedRows = () => page.locator('#layerList .layer-row.selected').count();
 
@@ -1914,4 +1914,119 @@ test('元画像のレイヤーが無い古い編集データ(形式 v10)は, い
   await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
   assert.deepEqual(await allLayerNames(), ['長方形・塗り', '元画像（black.png）']);
   assert.ok(near(await resultPixel(0.2, 0.2), [0, 255, 0]));
+});
+
+
+// ---- v2.14.0 ----
+// 一覧の行の名前と字下げの深さ(元画像の行を除く).
+const layerTree = () => page.$$eval('#layerList .layer-row:not(.is-base)', (els) => els.map((el) => `${el.style.getPropertyValue('--depth')}:${el.querySelector('.layer-name').textContent}`));
+const rowByName = (name) => page.locator('#layerList .layer-row').filter({ has: page.locator('.layer-name', { hasText: name }) }).first();
+
+test('Ctrl+G でグループにまとめ, 作業領域ではグループごと選んで動かす. Ctrl+クリックで中のものを選ぶ', async () => {
+  await threeRects();
+  await page.keyboard.press('v');
+  await dragOn([0.1, 0.1], [0.32, 0.25]);
+  await page.keyboard.press('Control+g');
+  assert.deepEqual(await layerTree(), ['0:長方形・塗り', '0:グループ 1', '1:長方形・塗り', '1:長方形・塗り']);
+  assert.match(await selectedName(), /グループ（中に 2 個）/);
+  assert.equal(await page.isVisible('#groupFields'), true);
+  assert.equal(await page.isVisible('#shapeFields'), false);
+  await page.keyboard.press('Escape');
+  // 中の1つをクリックすると, グループを選ぶ. ドラッグで2つとも動く.
+  const p = await at(0.2, 0.25);
+  await page.mouse.click(p.x, p.y);
+  assert.match(await selectedName(), /グループ/);
+  await dragOn([0.2, 0.25], [0.3, 0.35]);
+  assert.deepEqual(await framesPx(), [[100, 90, 140, 120], [160, 90, 200, 120], [280, 210, 320, 240]]);
+  // Ctrl+クリックなら, 中のものだけを選ぶ.
+  await page.keyboard.press('Escape');
+  const q = await at(0.3, 0.35);
+  await page.keyboard.down('Control');
+  await page.mouse.click(q.x, q.y);
+  await page.keyboard.up('Control');
+  assert.match(await selectedName(), /長方形/);
+  // 名前を変えられる.
+  await rowByName('グループ 1').locator('.layer-main').click();
+  await page.fill('#editGroupName', '見出し');
+  await page.locator('#editGroupName').dispatchEvent('change');
+  assert.deepEqual((await layerTree())[1], '0:見出し');
+});
+
+test('グループを隠す・ロックすると中のものすべてに効き, 閉じると一覧から中身が消える', async () => {
+  await threeRects();
+  await page.keyboard.press('v');
+  await dragOn([0.1, 0.1], [0.32, 0.25]);
+  await page.keyboard.press('Control+g');
+  const group = rowByName('グループ 1');
+  await group.locator('[data-act=visible]').click();
+  const [a, b, c] = await resultPixels([[0.2, 0.25], [0.35, 0.25], [0.75, 0.75]]);
+  assert.ok(near(a, BLACK) && near(b, BLACK), `グループの中は隠れる (実際: ${a} ${b})`);
+  assert.ok(near(c, DEFAULT_FILL), `グループの外はそのまま (実際: ${c})`);
+  await group.locator('[data-act=visible]').click();
+  await group.locator('[data-act=lock]').click();
+  await page.keyboard.press('Escape');
+  const p = await at(0.2, 0.25);
+  await page.mouse.click(p.x, p.y);
+  assert.equal(await page.isVisible('#propBody'), false, 'ロックしたグループの中は, 作業領域で選べない');
+  await group.locator('[data-act=fold]').click();
+  assert.deepEqual(await layerTree(), ['0:長方形・塗り', '0:グループ 1']);
+  await rowByName('グループ 1').locator('[data-act=fold]').click();
+  assert.equal((await layerTree()).length, 4);
+});
+
+test('グループは入れ子にでき, 編集データに保存して読み込むと階層が戻る. 解除すると中身を選ぶ', async () => {
+  await threeRects();
+  await page.keyboard.press('v');
+  await dragOn([0.1, 0.1], [0.32, 0.25]);
+  await page.keyboard.press('Control+g');
+  // グループと右下の長方形を, さらにまとめる.
+  await page.keyboard.press('Control+a');
+  await page.keyboard.press('Control+g');
+  assert.deepEqual(await layerTree(), ['0:グループ 2', '1:長方形・塗り', '1:グループ 1', '2:長方形・塗り', '2:長方形・塗り']);
+  const file = await saveProjectToFile();
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.version, 12);
+  assert.deepEqual(saved.document.objects.map((obj) => obj.type), ['base', 'rect', 'rect', 'group', 'rect', 'group']);
+  await page.keyboard.press('Escape');
+  await page.click('#clearObjects');
+  await page.setInputFiles('#loadProject', file);
+  await page.waitForFunction(() => document.getElementById('status').textContent.includes('編集データを読み込みました'));
+  assert.deepEqual(await layerTree(), ['0:グループ 2', '1:長方形・塗り', '1:グループ 1', '2:長方形・塗り', '2:長方形・塗り']);
+  // 外側を解くと, 中身(グループ 1 と長方形)を選ぶ.
+  await rowByName('グループ 2').locator('.layer-main').click();
+  await page.click('#ungroupObject');
+  assert.equal(await page.textContent('#multiName'), '2 個を選択中');
+  assert.deepEqual(await layerTree(), ['0:長方形・塗り', '0:グループ 1', '1:長方形・塗り', '1:長方形・塗り']);
+});
+
+test('一覧のつまみで, グループの中へ入れる・外へ出す. ▲▼ はグループの中で動く. 消す・複製は中身ごと', async () => {
+  await threeRects();
+  await page.keyboard.press('v');
+  await dragOn([0.1, 0.1], [0.32, 0.25]);
+  await page.keyboard.press('Control+g');
+  // 右下の長方形(いちばん上の行)を, グループの見出しのすぐ下へ → グループの中の最前面に入る.
+  const dragRow = async (fromRow, toRow, below = false) => {
+    const grip = await page.locator('#layerList .layer-grip').nth(fromRow).boundingBox();
+    const target = await page.locator('#layerList .layer-row').nth(toRow).boundingBox();
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(grip.x + grip.width / 2, target.y + (below ? target.height - 3 : 3), { steps: 6 });
+    await page.mouse.up();
+  };
+  await dragRow(0, 2);
+  assert.deepEqual(await layerTree(), ['0:グループ 1', '1:長方形・塗り', '1:長方形・塗り', '1:長方形・塗り']);
+  // グループの中のいちばん上の ▲ は押せず, ▼ で1つ下がる.
+  const first = page.locator('#layerList .layer-row').nth(1);
+  assert.equal(await first.locator('[data-act=up]').isDisabled(), true);
+  // 中の2番目を, 元画像の行の上(一覧のいちばん下の手前)へ → グループの外へ出る.
+  await dragRow(2, 4);
+  assert.deepEqual(await layerTree(), ['0:グループ 1', '1:長方形・塗り', '1:長方形・塗り', '0:長方形・塗り']);
+  // グループを複製すると中身ごと増え, 消すと中身ごと消える. 元に戻すで戻る.
+  await rowByName('グループ 1').locator('.layer-main').click();
+  await page.click('#duplicateObject');
+  assert.deepEqual(await layerTree(), ['0:グループ 1', '1:長方形・塗り', '1:長方形・塗り', '0:グループ 1', '1:長方形・塗り', '1:長方形・塗り', '0:長方形・塗り']);
+  await page.click('#deleteObject');
+  assert.equal(await objectCount(), 4);
+  await page.keyboard.press('Control+z');
+  assert.equal(await objectCount(), 7);
 });

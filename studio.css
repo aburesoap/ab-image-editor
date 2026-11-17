@@ -852,6 +852,23 @@ button:disabled {
   background: #fff;
 }
 
+.layer-row {
+  padding-left: calc(var(--depth, 0) * 12px);
+}
+
+.layer-row.is-group {
+  background: #f3f6fa;
+}
+
+.layer-fold {
+  width: 22px;
+}
+
+.layer-swatch.sw-group {
+  border: 0;
+  background: linear-gradient(#e2b04a, #e2b04a) 0 0 / 45% 30% no-repeat, linear-gradient(#f4c95d, #f4c95d) 0 25% / 100% 75% no-repeat;
+}
+
 .layer-row:last-child {
   border-bottom: 0;
 }

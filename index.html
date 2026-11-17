@@ -164,6 +164,7 @@
 <p id="multiName" class="obj-name">2 個を選択中</p>
 <p class="setting-note">選んだものをドラッグすると, まとめて動かせます. Shift+クリック（レイヤー一覧では Ctrl+クリックも）で選択に足す・外す. Esc で選択を解除します</p>
 <div class="button-row">
+<button id="groupObjects" class="ghost">グループにする（Ctrl+G）</button>
 <button id="multiDuplicate" class="ghost">まとめて複製</button>
 <button id="multiDelete" class="ghost">まとめて削除</button>
 </div>
@@ -235,6 +236,12 @@
 <input id="editLineWidth" type="range" min="1" max="80" value="4">
 </div>
 </div>
+<div id="groupFields">
+<label for="editGroupName">グループの名前</label>
+<input id="editGroupName" type="text" maxlength="60">
+<p id="groupNote" class="setting-note">作業領域でクリックするとグループごと選び, ドラッグでまとめて動かします. 中のものだけを選ぶときは, Ctrl+クリックするか, レイヤー一覧で選びます. 隠す・ロックすると, 中のものすべてに効きます</p>
+<div class="button-row"><button id="ungroupObject" class="secondary">グループを解除（Ctrl+Shift+G）</button></div>
+</div>
 <div id="baseFields">
 <p class="setting-note">開いた画像のレイヤーです. 重ね順を変えると, 図形やテキストをこの画像の後ろに置けます. 消すことはできません（目のボタンで隠すと, その部分は透明になります）</p>
 </div>
@@ -255,8 +262,10 @@
 <label class="check-label"><input id="editCutout" type="checkbox"> すぐ下のレイヤーをくり抜く</label>
 <p id="cutoutNote" class="setting-note" hidden>この形は描かれず, すぐ下のレイヤー1つに同じ形の穴を開けます. 「窓」の描き方なら, 形の外側を消します. 重ね順の ▲▼ で, くり抜く相手を変えられます</p>
 </div>
+<div id="opacityField">
 <label for="editOpacity">不透明度 <span id="editOpacityVal" class="value">100%</span></label>
 <input id="editOpacity" type="range" min="0" max="100" value="100">
+</div>
 <details id="numericFields" class="fold">
 <summary>数値で指定</summary>
 <div>

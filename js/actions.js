@@ -6,7 +6,7 @@ import {
 import { $, original, setStatus } from './dom.js';
 import { newObjectId, objects, selectedObject, state } from './state.js';
 import {
-  isBadge, isBase, isEffectType, isImage, isPaint, moveObject, sourceSize,
+  isBadge, isBase, isEffectType, isFullLayer, isImage, isPaint, moveObject, sourceSize,
 } from './geometry.js';
 import { imageAsset, initialImageFrame, registerImageAsset } from './image-layer.js';
 import { nextBadgeNumber, syncWindowStyleOption } from './shapes.js';
@@ -16,8 +16,12 @@ import { updateSelectionInspector } from './inspector.js';
 import { convertImage } from './convert.js';
 import { commitChange, pushHistory } from './history.js';
 import {
-  isMulti, selectMany, selectableOnStage, selectedObjects,
+  isMulti, selectMany, selectedObjects,
 } from './selection.js';
+import {
+  cloneSubtree, descendantsOf, groupItems, isGroup, lockedDeep, moveItemInFrontOf, normalizeTree, removeItem, stepItem,
+  topItems, ungroup,
+} from './tree.js';
 
 // 操作の案内. 図形の道具では, 番号とぼかし・モザイクの置き方が違うので, 種類に合わせる.
 function toolHint() {
@@ -101,32 +105,47 @@ export function syncShapeOptions() {
   $('toolHint').textContent = toolHint();
 }
 
-// オブジェクトを, 重ね順の別の位置(添字)へ移す. 選択は同じオブジェクトに付いたまま動く.
-export function moveObjectTo(from, to) {
-  if (from < 0 || from >= objects.length) return;
-  const target = Math.max(0, Math.min(objects.length - 1, to));
-  if (target === from) return;
+// 重ね順を変える処理 fn を行い, 選択は同じオブジェクトに付けたままにする. 変わったら履歴に残す.
+function reorder(fn) {
   const selected = selectedObject();
   const multiIds = [...state.multiIds];
-  const [item] = objects.splice(from, 1);
-  objects.splice(target, 0, item);
+  const before = objects.map((obj) => `${obj.id}:${obj.parent ?? ''}`).join();
+  fn();
   state.selectedIndex = selected ? objects.indexOf(selected) : -1;
   // 複数を選んでいるときは, 選んだままにする.
-  if (multiIds.length >= 2) state.multiIds = multiIds;
+  if (multiIds.length >= 2) state.multiIds = multiIds.filter((id) => objects.some((obj) => obj.id === id));
   updateSelectionInspector();
-  commitChange();
+  if (objects.map((obj) => `${obj.id}:${obj.parent ?? ''}`).join() !== before) commitChange();
+  else drawEditor();
 }
 
-// 選択中のオブジェクトを, 重ね順の別の位置へ移す.
+// 添字 index のもの(グループなら中身ごと)を, 同じグループの中で1つ前面(dir = 1)・背面(dir = -1)へ.
+export function stepObject(index, dir) {
+  reorder(() => stepItem(index, dir));
+}
+
+// 添字 index のものを, target(オブジェクト)の前面へ移し, target と同じグループに入れる. target が null なら最背面へ.
+// 元画像のレイヤーは, グループに入れない.
+export function dropObject(index, target) {
+  const obj = objects[index];
+  if (!obj) return;
+  if (isBase(obj) && target && target.parent != null) {
+    setStatus('元画像のレイヤーは, グループに入れられません');
+    return;
+  }
+  reorder(() => {
+    if (!moveItemInFrontOf(index, target)) setStatus('グループを, 自分の中へは移せません');
+  });
+}
+
+// 選択中のものを, 同じグループの中で最前面・最背面へ.
 export function reorderSelected(kind) {
-  const from = state.selectedIndex;
-  if (from < 0) return;
-  let to = from;
-  if (kind === 'front') to = objects.length - 1;
-  else if (kind === 'forward') to = from + 1;
-  else if (kind === 'backward') to = from - 1;
-  else to = 0;
-  moveObjectTo(from, to);
+  const obj = selectedObject();
+  if (!obj) return;
+  const dir = kind === 'front' ? 1 : -1;
+  reorder(() => {
+    for (let i = 0; i < MAX_OBJECTS && stepItem(objects.indexOf(obj), dir); i += 1);
+  });
 }
 
 // レイヤー一覧などから, オブジェクトを選ぶ. 選択以外の道具を持っていれば, 選択の道具へ持ち替える.
@@ -170,19 +189,26 @@ export function toggleLocked(index) {
 export function deleteObjectAt(index) {
   const obj = objects[index];
   if (!obj) return;
-  if (obj.locked) {
-    setStatus('ロック中のため削除できません. レイヤー一覧の錠前で解除してください');
-    return;
-  }
-  if (isBase(obj)) {
-    setStatus('元画像のレイヤーは消せません. 隠すときは, レイヤー一覧の目のボタンを使ってください');
+  const reason = undeletableReason(obj);
+  if (reason) {
+    setStatus(reason);
     return;
   }
   const selected = selectedObject();
-  objects.splice(index, 1);
-  state.selectedIndex = selected && selected !== obj ? objects.indexOf(selected) : -1;
+  const removed = removeItem(index);
+  normalizeTree();
+  state.selectedIndex = selected && !removed.includes(selected) ? objects.indexOf(selected) : -1;
   updateSelectionInspector();
   commitChange();
+}
+
+// 消せない理由. 消せるなら空文字.
+function undeletableReason(obj) {
+  if (isBase(obj)) return '元画像のレイヤーは消せません. 隠すときは, レイヤー一覧の目のボタンを使ってください';
+  if (lockedDeep(obj) || descendantsOf(obj).some((item) => item.locked)) {
+    return 'ロック中のため削除できません. レイヤー一覧の錠前で解除してください';
+  }
+  return '';
 }
 
 export function deleteSelected() {
@@ -190,17 +216,17 @@ export function deleteSelected() {
     deleteObjectAt(state.selectedIndex);
     return;
   }
-  // 複数を選んでいるときは, ロック中のものを残して消す. 残ったロック中のものは選んだままにする.
-  // ロック中のものと元画像は残し, 選んだままにする.
-  const list = selectedObjects();
-  const locked = list.filter((obj) => obj.locked || isBase(obj));
+  // 複数を選んでいるときは, ロック中のもの(ロック中のものを含むグループ)と元画像を残して消し, 残ったものは選んだままにする.
+  const list = topItems(selectedObjects());
+  const locked = list.filter((obj) => undeletableReason(obj));
   if (locked.length === list.length) {
     setStatus('ロック中のため削除できません. レイヤー一覧の錠前で解除してください');
     return;
   }
   const removed = new Set(list.filter((obj) => !locked.includes(obj)));
-  for (let i = objects.length - 1; i >= 0; i -= 1) if (removed.has(objects[i])) objects.splice(i, 1);
-  selectMany(locked);
+  removed.forEach((obj) => removeItem(objects.indexOf(obj)));
+  normalizeTree();
+  selectMany(locked.filter((obj) => objects.includes(obj)));
   updateSelectionInspector();
   commitChange();
   setStatus(`${removed.size} 個を削除しました${locked.length ? `（ロック中・元画像の ${locked.length} 個は残しました）` : ''}`);
@@ -210,7 +236,8 @@ export function deleteSelected() {
 export function selectAll() {
   if (!state.sourceImage || state.view !== 'edit') return;
   if (state.tool !== 'select') setTool('select');
-  selectMany(objects.filter(selectableOnStage));
+  // いちばん外側のもの(グループはグループごと)を選ぶ.
+  selectMany(objects.filter((obj) => obj.parent == null && !obj.hidden && !obj.locked && !isFullLayer(obj)));
   updateSelectionInspector();
   drawEditor();
 }
@@ -221,14 +248,10 @@ export function duplicateSelected() {
     return;
   }
   const source = selectedObject();
-  if (!source || isBase(source) || objects.length >= MAX_OBJECTS) return;
-  // 複製したものは, 隠れていたりロックされていたりしても, 見えて動かせる状態にする.
-  const copy = { ...source, id: newObjectId(), hidden: false, locked: false };
-  // 番号を複製したときは, 次の番号にする.
-  if (isBadge(copy)) copy.number = nextBadgeNumber();
-  moveObject(copy, 0.02, 0.02);
-  objects.splice(state.selectedIndex + 1, 0, copy);
-  state.selectedIndex += 1;
+  if (!source || isBase(source)) return;
+  const copy = duplicateItem(source);
+  if (!copy) return;
+  state.selectedIndex = objects.indexOf(copy);
   updateSelectionInspector();
   commitChange();
 }
@@ -351,24 +374,63 @@ export function resetImageAspect() {
   commitChange();
 }
 
-// 選んでいるものをまとめて複製する. 複製はそれぞれ元のすぐ上に置き, 複製したものを選ぶ.
-function duplicateMany() {
-  const list = selectedObjects().filter((obj) => !isBase(obj));
-  if (objects.length + list.length > MAX_OBJECTS) {
+// 1つ(グループなら中身ごと)を複製して, 元のすぐ前面に少しずらして置く. 複製したもの(グループなら見出し)を返す.
+// 複製したものは, 隠れていたりロックされていたりしても, 見えて動かせる状態にする. 番号は, 次の番号にする.
+function duplicateItem(source) {
+  const index = objects.indexOf(source);
+  const copies = cloneSubtree(index);
+  if (objects.length + copies.length > MAX_OBJECTS) {
     setStatus('これ以上は置けないため, 複製できません');
-    return;
+    return null;
   }
-  const copies = list.map((source) => {
-    const copy = { ...source, id: newObjectId(), hidden: false, locked: false };
-    // 番号は, 先に複製した番号の次にする.
+  const root = copies[copies.length - 1];
+  root.hidden = false;
+  root.locked = false;
+  copies.forEach((copy) => {
     if (isBadge(copy)) copy.number = nextBadgeNumber();
     moveObject(copy, 0.02, 0.02);
-    objects.splice(objects.indexOf(source) + 1, 0, copy);
-    return copy;
+  });
+  objects.splice(index + 1, 0, ...copies);
+  return root;
+}
+
+// 選んでいるものをまとめて複製する. 複製はそれぞれ元のすぐ前面に置き, 複製したものを選ぶ.
+function duplicateMany() {
+  const copies = [];
+  topItems(selectedObjects()).filter((obj) => !isBase(obj)).forEach((source) => {
+    const copy = duplicateItem(source);
+    if (copy) copies.push(copy);
   });
   selectMany(copies);
   updateSelectionInspector();
   commitChange();
+}
+
+// 選んでいるもの(元画像を除く)を, 新しいグループにまとめて選ぶ(Ctrl+G).
+export function groupSelected() {
+  const items = selectedObjects().filter((obj) => !isBase(obj));
+  if (!items.length) {
+    setStatus('まとめるものを選んでください（元画像のレイヤーはグループに入れられません）');
+    return;
+  }
+  const count = objects.filter(isGroup).length + 1;
+  const group = groupItems(items, `グループ ${count}`);
+  if (!group) return;
+  state.selectedIndex = objects.indexOf(group);
+  updateSelectionInspector();
+  commitChange();
+  setStatus(`${group.name} にまとめました. レイヤー一覧で開閉でき, 中のものは Ctrl+クリックで選べます`);
+}
+
+// 選んでいるグループを解いて, 中身を選ぶ(Ctrl+Shift+G).
+export function ungroupSelected() {
+  const groups = topItems(selectedObjects()).filter(isGroup);
+  if (!groups.length) return;
+  const children = groups.flatMap((group) => ungroup(group));
+  selectMany(children);
+  updateSelectionInspector();
+  commitChange();
+  setStatus('グループを解きました');
 }
 
 // 元画像のレイヤーだけを残して, すべて消す.

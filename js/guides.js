@@ -6,6 +6,7 @@ import { original } from './dom.js';
 import { objects, state } from './state.js';
 import { isFullLayer, screenScale } from './geometry.js';
 import { objectBounds } from './selection.js';
+import { hiddenDeep, isGroup } from './tree.js';
 
 const SETTING_KEY = 'image-editor-guides';
 // 吸い付く距離(画面上のpx).
@@ -34,7 +35,7 @@ function targetLines(moving) {
   const xs = [0, W / 2, W];
   const ys = [0, H / 2, H];
   objects.forEach((obj) => {
-    if (moving.includes(obj) || obj.hidden || isFullLayer(obj)) return;
+    if (moving.includes(obj) || isGroup(obj) || hiddenDeep(obj) || isFullLayer(obj)) return;
     const b = objectBounds(obj);
     xs.push(b.left, (b.left + b.right) / 2, b.right);
     ys.push(b.top, (b.top + b.bottom) / 2, b.bottom);

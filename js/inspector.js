@@ -26,6 +26,7 @@ import { renderLayerList } from './layers.js';
 import { syncColorPicker } from './colorpicker.js';
 import { syncPenOptions, syncPenTarget } from './pen-options.js';
 import { isMulti, selectedObjects } from './selection.js';
+import { descendantsOf, isGroup } from './tree.js';
 
 const fieldValue = (id) => {
   const el = $(id);
@@ -82,6 +83,24 @@ export function updateSelectionInspector() {
     return;
   }
 
+  // グループは, 名前と解除だけ. 位置や色の欄は出さない.
+  const group = isGroup(obj);
+  $('groupFields').hidden = !group;
+  if (group) {
+    ['textFields', 'shapeFields', 'paintFields', 'imageFields', 'baseFields', 'effectFields', 'cutoutField', 'opacityField', 'numericFields']
+      .forEach((id) => { $(id).hidden = true; });
+    const inside = descendantsOf(obj).filter((item) => !isGroup(item)).length;
+    const flags = [obj.hidden ? '非表示' : '', obj.locked ? 'ロック中' : ''].filter(Boolean).join('・');
+    $('selectedObjectName').textContent = `グループ（中に ${inside} 個）${flags ? ` ${flags}` : ''}`;
+    $('editGroupName').value = obj.name || '';
+    $('duplicateObject').disabled = false;
+    $('deleteObject').disabled = Boolean(obj.locked);
+    $('lockNote').hidden = true;
+    rememberFields();
+    syncColorPicker();
+    return;
+  }
+  $('opacityField').hidden = false;
   const textObject = isText(obj);
   const effect = isEffectType(obj.type);
   const badge = isBadge(obj);
@@ -180,6 +199,12 @@ export function applyInspector() {
   else if (isBadge(obj)) last = state.lastBadge;
   else if (isPaper(obj) || isPaint(obj) || isImage(obj) || isBase(obj) || pen) last = {};
 
+  if (isGroup(obj)) {
+    if (touched('editGroupName')) obj.name = $('editGroupName').value.trim().slice(0, 60) || 'グループ';
+    rememberFields();
+    renderLayerList();
+    return;
+  }
   if (touched('editX')) {
     const value = number('editX', -100, 200);
     if (value !== null) moveObject(obj, value / 100 - objectCenter(obj).x, 0);

@@ -26,6 +26,7 @@ import {
 } from './geometry.js';
 import { markSaved, resetHistory, restoreSnapshot, snapshot } from './history.js';
 import { imageAsset, pruneImageAssets, registerImageAsset } from './image-layer.js';
+import { normalizeTree } from './tree.js';
 
 // 重ねた画像の素材の数の上限.
 const MAX_IMAGE_ASSETS = 100;
@@ -202,6 +203,15 @@ function sanitizeText(raw, ref) {
 function sanitizeObject(raw, ref, assetIds) {
   if (!raw || typeof raw !== 'object') return null;
   if (raw.type === 'image') return sanitizeImage(raw, assetIds);
+  if (raw.type === 'group') {
+    return {
+      id: newObjectId(),
+      type: 'group',
+      name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 60) : 'グループ',
+      hidden: raw.hidden === true,
+      locked: raw.locked === true,
+    };
+  }
   if (raw.type === 'base') {
     return {
       ...makeBaseLayer(),
@@ -219,11 +229,24 @@ function sanitizeDocument(raw, assetIds) {
   if (!Array.isArray(raw.objects)) throw new Error('invalid project');
   const rotation = ROTATIONS.includes(raw.rotation) ? raw.rotation : 0;
   const ref = refWidth(rotation);
-  let list = raw.objects.slice(0, MAX_OBJECTS).map((item) => sanitizeObject(item, ref, assetIds)).filter(Boolean);
+  // 読み込んだものには新しい id を付けるので, 保存時の id から新しい id への対応を作り, 親(グループ)のつながりを付け直す.
+  const idMap = new Map();
+  const parents = new Map();
+  let list = raw.objects.slice(0, MAX_OBJECTS).map((item) => {
+    const obj = sanitizeObject(item, ref, assetIds);
+    if (obj && (typeof item.id === 'number' || typeof item.id === 'string')) idMap.set(item.id, obj.id);
+    if (obj && item.parent != null) parents.set(obj, item.parent);
+    return obj;
+  }).filter(Boolean);
+  parents.forEach((savedParent, obj) => {
+    if (idMap.has(savedParent) && obj.type !== 'base') obj.parent = idMap.get(savedParent);
+  });
   // 元画像のレイヤーは1つだけ. 無ければ(v10 までの編集データ), いちばん下に置く.
   const firstBase = list.find((obj) => obj.type === 'base');
   list = list.filter((obj) => obj.type !== 'base' || obj === firstBase);
   if (!firstBase) list.unshift(makeBaseLayer());
+  // 並びと親の関係が崩れていれば直し, 中身の無いグループは落とす.
+  normalizeTree(list);
   const w = limited(raw.crop.w, 1, MIN_CROP, 1);
   const h = limited(raw.crop.h, 1, MIN_CROP, 1);
   return {

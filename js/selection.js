@@ -4,6 +4,9 @@
 import { objects, state } from './state.js';
 import { isFullLayer } from './geometry.js';
 import { objectFrame } from './handles.js';
+import {
+  hiddenDeep, isGroup, leavesOf, lockedDeep, outermost, topItems,
+} from './tree.js';
 
 export const isMulti = () => state.multiIds.length >= 2;
 
@@ -15,6 +18,11 @@ export function selectedObjects() {
   }
   const obj = state.selectedIndex >= 0 ? objects[state.selectedIndex] : null;
   return obj ? [obj] : [];
+}
+
+// 選んでいるものの中身(グループは中身に開く). 動かすときに使う. 重なりは1つにまとめる.
+export function selectedLeaves() {
+  return [...new Set(topItems(selectedObjects()).flatMap((obj) => leavesOf(obj)))];
 }
 
 export const isSelectedIndex = (index) => (isMulti()
@@ -42,7 +50,7 @@ export function toggleSelected(index) {
 }
 
 // 作業領域で選べるもの. 隠したもの・ロックしたもの・画像全体に広がるもの(白地・ペイント)は除く.
-export const selectableOnStage = (obj) => !obj.hidden && !obj.locked && !isFullLayer(obj);
+export const selectableOnStage = (obj) => !isGroup(obj) && !hiddenDeep(obj) && !lockedDeep(obj) && !isFullLayer(obj);
 
 // オブジェクトの枠(回転を含む)を囲む, 画面に沿った長方形(canvas上のpx).
 export function objectBounds(obj) {
@@ -62,9 +70,11 @@ export function objectsInRect(rect) {
   const right = Math.max(rect.x1, rect.x2);
   const top = Math.min(rect.y1, rect.y2);
   const bottom = Math.max(rect.y1, rect.y2);
-  return objects.filter((obj) => {
+  // 範囲に触れたものがグループの中にあれば, いちばん外側のグループを選ぶ.
+  const hits = objects.filter((obj) => {
     if (!selectableOnStage(obj)) return false;
     const b = objectBounds(obj);
     return b.right >= left && b.left <= right && b.bottom >= top && b.top <= bottom;
   });
+  return [...new Set(hits.map((obj) => outermost(obj)))];
 }

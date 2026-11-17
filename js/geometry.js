@@ -119,7 +119,8 @@ export function objectCenter(obj) {
 }
 
 export function moveObject(obj, dx, dy) {
-  if (isFullLayer(obj)) return;
+  // グループは位置を持たない(中身をそれぞれ動かす).
+  if (isFullLayer(obj) || obj.type === 'group') return;
   if (isText(obj)) {
     obj.x += dx;
     obj.y += dy;
